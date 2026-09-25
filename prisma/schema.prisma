@@ -1,0 +1,9 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+// A URL fica aqui (e nao em prisma.config.ts) para o Prisma 6 ler o .env sozinho.
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
