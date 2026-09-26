@@ -17,6 +17,8 @@ Este repositório contém a API REST responsável por centralizar:
 
 Na primeira entrega, o projeto terá somente este backend.
 
+Guia do backend (como rodar, regras do banco e padrão das tarefas): [docs/GUIA-BACKEND-VALESAFRA.md](docs/GUIA-BACKEND-VALESAFRA.md).
+
 ## Objetivo
 
 Disponibilizar uma API segura e organizada para conectar:
