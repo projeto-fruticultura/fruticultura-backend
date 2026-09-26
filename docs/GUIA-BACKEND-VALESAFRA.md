@@ -19,7 +19,7 @@
 
 ## 3. Como puxar o código e rodar na sua máquina
 
-**Antes de começar:** ter o Node.js (versão LTS) e o Git instalados, e pedir ao Igor a **URL do banco**, no privado.
+**Antes de começar:** ter o Node.js (versão 18.18 ou superior) e o Git instalados, e receber do Igor, no privado, o arquivo **`.env`** (ou só a URL do banco).
 
 Use o terminal do VS Code (é **cmd**, então use `copy`).
 
@@ -33,10 +33,10 @@ Use o terminal do VS Code (é **cmd**, então use `copy`).
 
 **Passo 3. Configurar o `.env`**
 
-*Opção 1: o Igor mandou o arquivo `.env` pronto (mais simples)*
+*Forma A: o Igor mandou o arquivo `.env` pronto (mais simples)*
 - Salve na raiz da pasta do projeto (o mesmo lugar do `package.json`). O nome tem que ser exatamente `.env`, sem `.txt` e sem `_` na frente. Se o Windows mudou o nome, renomeie. Depois pule para o passo 4.
 
-*Opção 2: criar você mesmo*
+*Forma B: criar você mesmo (só com a URL do banco)*
 1. `copy .env.example .env`
 2. Abra o arquivo `.env` no VS Code.
 3. Na linha `DATABASE_URL=`, cole a URL que o Igor mandou, **entre aspas**, sem espaço no começo nem no fim:
