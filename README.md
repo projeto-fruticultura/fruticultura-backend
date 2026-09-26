@@ -24,7 +24,7 @@ Disponibilizar uma API segura e organizada para conectar:
 - frontend hospedado no Netlify;
 - simulação IoT executada no Wokwi;
 - NASA POWER API;
-- banco PostgreSQL hospedado no Render.
+- banco PostgreSQL hospedado no Render até a 1ª entrega (13/10/2026) e, depois, na AWS.
 
 ## Arquitetura
 
@@ -33,8 +33,10 @@ Frontend no Netlify
         ↕ HTTPS/REST/JSON
 Backend Node.js no Render
         ↕ Prisma ORM
-PostgreSQL no Render
+PostgreSQL (Render até a 1ª entrega; depois AWS)
 ```
+
+O banco fica no Render até a 1ª entrega (13/10/2026); o plano gratuito do Render expira em 20/10/2026. Depois da 1ª entrega, o banco vai para a AWS, conforme a 2ª entrega (08/12/2026).
 
 Fontes de dados:
 
@@ -46,9 +48,9 @@ Backend ↔ NASA POWER API
 ## Tecnologias
 
 - Node.js;
-- Express;
-- JavaScript ou TypeScript;
-- Prisma ORM;
+- Express 5;
+- JavaScript (CommonJS);
+- Prisma ORM 6.19.3 (versão fixa);
 - PostgreSQL;
 - JWT;
 - bcrypt;
@@ -86,12 +88,12 @@ src/
 ├── services/
 ├── tests/
 ├── validators/
-└── server.ts
+└── server.js
 
 prisma/
 ├── migrations/
 ├── schema.prisma
-└── seed.ts
+└── seed.js
 ```
 
 ## Entidades principais
@@ -405,81 +407,54 @@ Erros respondem em JSON no formato `{ "erro": "mensagem" }`. Validação inváli
   O `migrate deploy` só aplica as migrations novas. Ele nunca propõe reset.
 - **Nunca** rode `npx prisma migrate reset` no banco compartilhado: ele apaga todos os dados.
 
-## Pré-requisitos
-
-- Node.js;
-- npm;
-- PostgreSQL;
-- Git.
-
-## Instalação
-
-```bash
-git clone URL_DO_REPOSITORIO
-cd pi-vale-backend
-npm install
-```
-
 ## Variáveis de ambiente
 
-Crie um arquivo `.env`:
+O `.env` fica na raiz do projeto e **nunca vai para o Git** (está no `.gitignore`). O modelo é o `.env.example`. Nunca publique credenciais reais: os exemplos abaixo são fictícios.
 
-```env
-PORT=3000
-DATABASE_URL=
-JWT_SECRET=
-NASA_POWER_BASE_URL=https://power.larc.nasa.gov/api
-FRONTEND_URL=http://localhost:5173
-```
+| Variável | Para que serve | Exemplo fictício |
+|---|---|---|
+| `DATABASE_URL` | Endereço de conexão com o PostgreSQL, lido pelo Prisma (`schema.prisma`). | `postgresql://USUARIO:SENHA@HOST.render.com/NOME_DO_BANCO?sslmode=require` |
+| `PORT` | Porta em que o servidor sobe. Se faltar, usa 3000. | `3000` |
+| `CORS_ORIGIN` | Única origem (endereço do frontend) que pode chamar a API pelo navegador. Se faltar, nenhuma origem externa é liberada. | `http://localhost:5173` |
+| `SEED_ADMIN_EMAIL` | E-mail do usuário ADMIN criado pelo seed. Também é usado pela API como dono das propriedades cadastradas, até o login ficar pronto. | `admin@valesafra.local` |
+| `SEED_ADMIN_SENHA` | Senha do ADMIN criado pelo seed (salva no banco como hash bcrypt). | `troque-esta-senha` |
 
-Nunca publique credenciais reais.
+**Ainda não usadas** (entram nas próximas tarefas):
 
-## Configuração do banco
-
-Gerar o Prisma Client:
-
-```bash
-npx prisma generate
-```
-
-Executar as migrations:
-
-```bash
-npx prisma migrate dev
-```
-
-Popular o banco com dados iniciais:
-
-```bash
-npx prisma db seed
-```
-
-## Execução local
-
-```bash
-npm run dev
-```
+| Variável | Para que vai servir | Exemplo fictício |
+|---|---|---|
+| `JWT_SECRET` | Chave para assinar os tokens de login (JWT). | `troque-por-uma-chave-longa-e-aleatoria` |
+| `NASA_POWER_BASE_URL` | Endereço base da NASA POWER API. | `https://power.larc.nasa.gov/api` |
 
 ## Testes
 
-```bash
-npm test
-```
+Ainda não há testes automatizados (não existe o script `npm test`). Os endpoints são testados manualmente: cada endpoint é testado assim que fica pronto, incluindo os casos de erro (dados inválidos, id inexistente, JSON malformado).
 
 ## Deploy
 
-O backend e o PostgreSQL serão publicados no Render.
+O backend será publicado no Render.
+
+O PostgreSQL fica no Render até a 1ª entrega (13/10/2026); o plano gratuito do Render expira em 20/10/2026. Depois disso, o banco vai para a AWS, conforme a 2ª entrega (08/12/2026).
 
 ## Padrão de contribuição
 
 1. Criar uma branch.
 2. Implementar a tarefa.
-3. Executar os testes.
+3. Testar manualmente os endpoints afetados.
 4. Fazer commits objetivos.
 5. Abrir um pull request.
 6. Solicitar revisão.
 7. Integrar após aprovação.
 
+Regras:
+
+- Nada direto na `main`.
+- Atualizar o README quando a mudança afetar como rodar o projeto (variáveis do `.env`, scripts, endpoints, migrations).
+- Avisar no grupo antes de mexer no `schema.prisma`.
+
 ## Status
 
-Projeto em fase inicial de desenvolvimento.
+MVP em desenvolvimento. A 1ª entrega é em 13/10/2026.
+
+- Pronto: Propriedades (API em `/api/propriedades`).
+- Próximas tarefas: Cultura, Lote e Sensor.
