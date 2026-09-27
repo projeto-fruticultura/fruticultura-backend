@@ -7,6 +7,7 @@ class CulturaController {
       const culturas = await culturaService.listarTodas();
       return res.json(culturas);
     } catch (error) {
+      console.error('[Erro em listarTodas]:', error);
       return res.status(500).json({ erro: 'Erro interno ao buscar culturas.' });
     }
   }
@@ -22,6 +23,7 @@ class CulturaController {
 
       return res.json(cultura);
     } catch (error) {
+      console.error('[Erro em buscarPorId]:', error);
       return res.status(500).json({ erro: 'Erro ao buscar a cultura.' });
     }
   }
@@ -32,6 +34,7 @@ class CulturaController {
       const novaCultura = await culturaService.criar(req.body);
       return res.status(201).json(novaCultura);
     } catch (error) {
+      console.error('[Erro em criar]:', error);
       return res.status(400).json({ erro: error.message });
     }
   }
@@ -43,6 +46,7 @@ class CulturaController {
       const culturaAtualizada = await culturaService.atualizar(id, req.body);
       return res.json(culturaAtualizada);
     } catch (error) {
+      console.error('[Erro em atualizar]:', error);
       return res.status(400).json({ erro: error.message });
     }
   }
@@ -53,7 +57,25 @@ class CulturaController {
       await culturaService.deletar(id);
       return res.status(204).send();
     } catch (error) {
+      console.error('[Erro em deletar]:', error);
       return res.status(500).json({ erro: 'Erro ao excluir cultura.' });
+    }
+  }
+
+  async detalhesCompletos(req, res) {
+    try {
+      const { id } = req.params;
+      const { lat, lon } = req.query;
+
+      if (!lat || !lon) {
+        return res.status(400).json({ erro: 'Latitude e longitude são obrigatórias.' });
+      }
+
+      const detalhes = await culturaService.obterDetalhesCompletos(id, lat, lon);
+      return res.json(detalhes);
+    } catch (error) {
+      console.error('[Erro em detalhesCompletos]:', error);
+      return res.status(500).json({ erro: error.message });
     }
   }
 }

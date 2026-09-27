@@ -1,56 +1,72 @@
 const prisma = require('../config/prisma');
+const openMeteoService = require('./openMeteoService');
+const mercadoService = require('./mercadoService');
+const ibgeService = require('./ibgeService');
 
 class CulturaService {
-  // Busca todas as culturas cadastradas (Para renderizar os cards na tela)
   async listarTodas() {
-    return await prisma.cultura.findMany({
-      orderBy: { id: 'desc' },
-    });
+    return await prisma.cultura.findMany();
   }
 
-  // Busca uma cultura pelo ID
   async buscarPorId(id) {
     return await prisma.cultura.findUnique({
       where: { id: Number(id) },
     });
   }
 
-  // Cria uma nova cultura (Formulário da tela "Adicionar cultura")
   async criar(dados) {
     return await prisma.cultura.create({
-      data: {
-        nome: dados.nome,
-        variedade: dados.variedade || null,
-        descricao: dados.descricao || null,
-        temperaturaMin: dados.temperaturaMin,
-        temperaturaMax: dados.temperaturaMax,
-        umidadeMin: dados.umidadeMin,
-        umidadeMax: dados.umidadeMax,
-      },
+      data: dados,
     });
   }
 
-  // Edita uma cultura existente
   async atualizar(id, dados) {
     return await prisma.cultura.update({
       where: { id: Number(id) },
-      data: {
-        nome: dados.nome,
-        variedade: dados.variedade || null,
-        descricao: dados.descricao || null,
-        temperaturaMin: dados.temperaturaMin,
-        temperaturaMax: dados.temperaturaMax,
-        umidadeMin: dados.umidadeMin,
-        umidadeMax: dados.umidadeMax,
-      },
+      data: dados,
     });
   }
 
-  // Remove uma cultura
   async deletar(id) {
     return await prisma.cultura.delete({
       where: { id: Number(id) },
     });
+  }
+
+  async obterDetalhesCompletos(culturaId, latitude, longitude) {
+    const cultura = await prisma.cultura.findUnique({
+      where: { id: Number(culturaId) },
+    });
+    
+    if (!cultura) throw new Error('Cultura não encontrada.');
+
+    // 1. Clima (Open-Meteo)
+    const clima = await openMeteoService.obterClimaAtual(latitude, longitude);
+
+    const alertaTemperatura =
+      clima.temperaturaAtual < Number(cultura.temperaturaMin) ||
+      clima.temperaturaAtual > Number(cultura.temperaturaMax);
+
+    const alertaUmidade =
+      clima.umidadeAtual < Number(cultura.umidadeMin) ||
+      clima.umidadeAtual > Number(cultura.umidadeMax);
+
+    // 2. Preços Reais (Mercado Livre API)
+    const mercado = await mercadoService.obterPrecosReais(cultura.nome);
+
+    // 3. Estatísticas (IBGE Nacional)
+    const estatisticas = await ibgeService.obterEstatisticasNacionais();
+
+    return {
+      cultura,
+      condicoesAtuais: clima,
+      alertas: {
+        temperaturaForaDoRango: alertaTemperatura,
+        umidadeForaDoRango: alertaUmidade,
+      },
+      cotacaoMercado: mercado,
+      estatisticasAgricolas: estatisticas
+    };
   }
 }
 

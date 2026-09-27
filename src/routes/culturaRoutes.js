@@ -4,6 +4,7 @@ const culturaController = require('../controllers/culturaController.js');
 const routes = Router();
 
 routes.get('/culturas', culturaController.index);
+routes.get('/culturas/:id/detalhes', culturaController.detalhesCompletos);
 routes.get('/culturas/:id', culturaController.show);
 routes.post('/culturas', culturaController.create);
 routes.put('/culturas/:id', culturaController.update);
