@@ -509,5 +509,5 @@ Regras:
 
 MVP em desenvolvimento. A 1ª entrega é em 13/10/2026.
 
-- Pronto: Propriedades (API em `/api/propriedades`).
-- Próximas tarefas: Cultura, Lote e Sensor.
+- Pronto: Propriedades, Culturas e Sensores (APIs em `/api/propriedades`, `/api/culturas` e `/api/sensores`).
+- Próximas tarefas: Lote, Leituras (ThingSpeak) e login.
