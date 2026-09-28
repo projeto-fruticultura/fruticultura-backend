@@ -396,6 +396,57 @@ Corpo do POST/PUT (todos obrigatórios; outros campos são ignorados):
 
 Erros respondem em JSON no formato `{ "erro": "mensagem" }`. Validação inválida (400) inclui também `campos`, com uma mensagem por campo. Id não numérico: 400. Propriedade inexistente ou inativa: 404.
 
+### Endpoints prontos: Culturas
+
+| Verbo | Rota | O que faz | Sucesso |
+|---|---|---|---|
+| GET | `/api/culturas` | Lista as culturas por nome | 200 |
+| GET | `/api/culturas/:id` | Detalhe de uma cultura | 200 |
+| GET | `/api/culturas/:id/detalhes?lat=&lon=` | Cultura com clima atual nas coordenadas, alertas de faixa, cotação de mercado e estatísticas do IBGE. `lat` e `lon` são obrigatórios (400 se faltarem ou estiverem fora da faixa) | 200 |
+| POST | `/api/culturas` | Cadastra uma cultura | 201 |
+| PUT | `/api/culturas/:id` | Edita os campos do cadastro | 200 |
+| DELETE | `/api/culturas/:id` | Apaga a cultura. Se ela tem lotes, não apaga e responde 409 | 204 |
+
+Corpo do POST/PUT (`variedade` e `descricao` são opcionais; mínimo não pode ser maior que máximo; outros campos são ignorados):
+
+```json
+{
+  "nome": "Manga",
+  "variedade": "Tommy Atkins",
+  "descricao": null,
+  "temperaturaMin": 24,
+  "temperaturaMax": 32,
+  "umidadeMin": 40,
+  "umidadeMax": 70
+}
+```
+
+### Endpoints prontos: Sensores
+
+| Verbo | Rota | O que faz | Sucesso |
+|---|---|---|---|
+| GET | `/api/sensores` | Lista os sensores ativos por código, cada um com o lote (`id` e `identificacao`) | 200 |
+| GET | `/api/sensores/:id` | Detalhe de um sensor ativo, com o lote | 200 |
+| POST | `/api/sensores` | Cadastra um sensor. Código repetido: 409 | 201 |
+| PUT | `/api/sensores/:id` | Edita os campos do cadastro. Código repetido: 409 | 200 |
+| DELETE | `/api/sensores/:id` | Exclusão lógica (status passa a `INATIVO`) | 204 |
+
+Corpo do POST/PUT (`localizacao` é opcional; `dataInstalacao` em `AAAA-MM-DD`, data real e não futura; `loteId` precisa ser número e de um lote de propriedade ativa; outros campos são ignorados):
+
+```json
+{
+  "codigo": "SJ-L1-S1",
+  "tipo": "TEMPERATURA_UMIDADE",
+  "localizacao": "Lote 1, ponto 1",
+  "dataInstalacao": "2021-03-15",
+  "loteId": 1
+}
+```
+
+Nas respostas, `dataInstalacao` também vem em `AAAA-MM-DD`.
+
+> **Ainda não há login:** todas as rotas acima estão abertas por enquanto. A autenticação (JWT) entra numa próxima tarefa.
+
 ## Regras do banco
 
 - Quem for mexer no `schema.prisma` usa um **banco próprio** (Opção 2) e **avisa o grupo antes**.
