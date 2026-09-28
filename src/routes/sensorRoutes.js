@@ -1,10 +1,13 @@
-const { Router } = require('express');
-const sensorController = require('../controllers/sensorController');
+const { Router } = require("express");
+const controller = require("../controllers/sensorController");
 
 const router = Router();
 
-
-router.get('/sensores', sensorController.listarSensores);
-router.post('/sensores', sensorController.criarSensor);
+// Caminhos sem "/sensores": o prefixo e definido em routes/index.js.
+router.get("/", controller.listar);
+router.get("/:id", controller.buscarPorId);
+router.post("/", controller.criar);
+router.put("/:id", controller.atualizar);
+router.delete("/:id", controller.remover);
 
 module.exports = router;

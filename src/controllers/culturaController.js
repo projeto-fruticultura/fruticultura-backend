@@ -1,83 +1,39 @@
-const culturaService = require('../services/culturaService.js');
-const { culturaSchema } = require('../validators/culturaValidator.js');
+const culturaService = require("../services/culturaService");
+const { validarCultura, validarCoordenadas, validarId } = require("../validators/culturaValidator");
 
-class CulturaController {
-  async index(req, res) {
-    try {
-      const culturas = await culturaService.listarTodas();
-      return res.json(culturas);
-    } catch (error) {
-      console.error('[Erro em listarTodas]:', error);
-      return res.status(500).json({ erro: 'Erro interno ao buscar culturas.' });
-    }
-  }
+// No Express 5, erro lancado em funcao async ja vai para o middleware de erro,
+// por isso nao ha try/catch aqui.
 
-  async show(req, res) {
-    try {
-      const { id } = req.params;
-      const cultura = await culturaService.buscarPorId(id);
-
-      if (!cultura) {
-        return res.status(404).json({ erro: 'Cultura não encontrada.' });
-      }
-
-      return res.json(cultura);
-    } catch (error) {
-      console.error('[Erro em buscarPorId]:', error);
-      return res.status(500).json({ erro: 'Erro ao buscar a cultura.' });
-    }
-  }
-
-  async create(req, res) {
-    try {
-      await culturaSchema.validate(req.body);
-      const novaCultura = await culturaService.criar(req.body);
-      return res.status(201).json(novaCultura);
-    } catch (error) {
-      console.error('[Erro em criar]:', error);
-      return res.status(400).json({ erro: error.message });
-    }
-  }
-
-  async update(req, res) {
-    try {
-      const { id } = req.params;
-      await culturaSchema.validate(req.body);
-      const culturaAtualizada = await culturaService.atualizar(id, req.body);
-      return res.json(culturaAtualizada);
-    } catch (error) {
-      console.error('[Erro em atualizar]:', error);
-      return res.status(400).json({ erro: error.message });
-    }
-  }
-
-  async delete(req, res) {
-    try {
-      const { id } = req.params;
-      await culturaService.deletar(id);
-      return res.status(204).send();
-    } catch (error) {
-      console.error('[Erro em deletar]:', error);
-      return res.status(500).json({ erro: 'Erro ao excluir cultura.' });
-    }
-  }
-
-  async detalhesCompletos(req, res) {
-    try {
-      const { id } = req.params;
-      const { lat, lon } = req.query;
-
-      if (!lat || !lon) {
-        return res.status(400).json({ erro: 'Latitude e longitude são obrigatórias.' });
-      }
-
-      const detalhes = await culturaService.obterDetalhesCompletos(id, lat, lon);
-      return res.json(detalhes);
-    } catch (error) {
-      console.error('[Erro em detalhesCompletos]:', error);
-      return res.status(500).json({ erro: error.message });
-    }
-  }
+async function listar(req, res) {
+  res.status(200).json(await culturaService.listar());
 }
 
-module.exports = new CulturaController();
+async function buscarPorId(req, res) {
+  const id = validarId(req.params.id);
+  res.status(200).json(await culturaService.buscarPorId(id));
+}
+
+async function criar(req, res) {
+  const dados = validarCultura(req.body);
+  res.status(201).json(await culturaService.criar(dados));
+}
+
+async function atualizar(req, res) {
+  const id = validarId(req.params.id);
+  const dados = validarCultura(req.body);
+  res.status(200).json(await culturaService.atualizar(id, dados));
+}
+
+async function remover(req, res) {
+  const id = validarId(req.params.id);
+  await culturaService.remover(id);
+  res.status(204).end();
+}
+
+async function detalhes(req, res) {
+  const id = validarId(req.params.id);
+  const { latitude, longitude } = validarCoordenadas(req.query);
+  res.status(200).json(await culturaService.obterDetalhesCompletos(id, latitude, longitude));
+}
+
+module.exports = { listar, buscarPorId, criar, atualizar, remover, detalhes };
