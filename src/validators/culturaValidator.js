@@ -1,37 +1,110 @@
-const yup = require('yup');
+const { ErroHttp } = require("../middlewares/erros");
+// Mesma regra de :id de Propriedades; importado para nao manter duas copias.
+const { validarId } = require("./propriedadeValidator");
 
-const culturaSchema = yup.object().shape({
-  nome: yup
-    .string()
-    .max(100, 'O nome deve ter no máximo 100 caracteres')
-    .required('O nome da cultura é obrigatório'),
-  variedade: yup
-    .string()
-    .max(100, 'A variedade deve ter no máximo 100 caracteres')
-    .nullable(),
-  descricao: yup
-    .string()
-    .nullable(),
-  temperaturaMin: yup
-    .number()
-    .typeError('A temperatura mínima deve ser um número')
-    .required('A temperatura mínima é obrigatória'),
-  temperaturaMax: yup
-    .number()
-    .typeError('A temperatura máxima deve ser um número')
-    .required('A temperatura máxima é obrigatória'),
-  umidadeMin: yup
-    .number()
-    .min(0, 'A umidade mínima não pode ser menor que 0%')
-    .max(100, 'A umidade mínima não pode ser maior que 100%')
-    .typeError('A umidade mínima deve ser um número')
-    .required('A umidade mínima é obrigatória'),
-  umidadeMax: yup
-    .number()
-    .min(0, 'A umidade máxima não pode ser menor que 0%')
-    .max(100, 'A umidade máxima não pode ser maior que 100%')
-    .typeError('A umidade máxima deve ser um número')
-    .required('A umidade máxima é obrigatória'),
-});
+function validarTextoObrigatorio(valor, min, max) {
+  if (valor === undefined || valor === null || valor === "") return "é obrigatório.";
+  if (typeof valor !== "string") return "deve ser um texto.";
+  const limpo = valor.trim();
+  if (limpo.length < min || limpo.length > max) return `deve ter entre ${min} e ${max} caracteres.`;
+  return null;
+}
 
-module.exports = { culturaSchema };
+function validarTextoOpcional(valor, max) {
+  if (valor === undefined || valor === null) return null;
+  if (typeof valor !== "string") return "deve ser um texto.";
+  if (valor.trim().length > max) return `deve ter no máximo ${max} caracteres.`;
+  return null;
+}
+
+// Texto vazio (ou so espacos) vira null, para nao gravar texto vazio.
+function textoOuNull(valor) {
+  return typeof valor === "string" && valor.trim() ? valor.trim() : null;
+}
+
+// Numero de verdade (texto "23" e recusado, como em Propriedades), na faixa e com ate 2 casas,
+// que e o que cabe no Decimal(5, 2) do schema.
+function validarDecimal(valor, min, max) {
+  if (valor === undefined || valor === null || valor === "") return "é obrigatório.";
+  if (typeof valor !== "number" || !Number.isFinite(valor)) return "deve ser um número.";
+  if (valor < min || valor > max) return `deve estar entre ${min} e ${max}.`;
+  // Nessa faixa, String() so usa notacao cientifica para valores minusculos (ex.: 1e-7),
+  // que tambem devem ser recusados.
+  if (!/^-?\d+(\.\d{1,2})?$/.test(String(valor))) return "deve ter no máximo 2 casas decimais.";
+  return null;
+}
+
+// Valida uma faixa minimo/maximo; so compara se os dois ja passaram na validacao individual.
+function validarFaixa(corpo, campos, campoMin, campoMax, min, max) {
+  const erroMin = validarDecimal(corpo[campoMin], min, max);
+  if (erroMin) campos[campoMin] = `${campoMin} ${erroMin}`;
+  const erroMax = validarDecimal(corpo[campoMax], min, max);
+  if (erroMax) campos[campoMax] = `${campoMax} ${erroMax}`;
+  if (!erroMin && !erroMax && corpo[campoMin] > corpo[campoMax]) {
+    campos[campoMin] = `${campoMin} não pode ser maior que ${campoMax}.`;
+  }
+}
+
+// Valida o corpo do POST/PUT e devolve so os campos permitidos.
+// id e relacoes (ex.: lotes) nunca vem do cliente.
+function validarCultura(corpo) {
+  if (!corpo || typeof corpo !== "object" || Array.isArray(corpo)) {
+    throw new ErroHttp(400, "Envie os dados da cultura em JSON.");
+  }
+
+  const campos = {};
+
+  const erroNome = validarTextoObrigatorio(corpo.nome, 2, 100);
+  if (erroNome) campos.nome = `nome ${erroNome}`;
+
+  const erroVariedade = validarTextoOpcional(corpo.variedade, 100);
+  if (erroVariedade) campos.variedade = `variedade ${erroVariedade}`;
+
+  const erroDescricao = validarTextoOpcional(corpo.descricao, 1000);
+  if (erroDescricao) campos.descricao = `descricao ${erroDescricao}`;
+
+  validarFaixa(corpo, campos, "temperaturaMin", "temperaturaMax", -50, 60);
+  validarFaixa(corpo, campos, "umidadeMin", "umidadeMax", 0, 100);
+
+  if (Object.keys(campos).length > 0) {
+    throw new ErroHttp(400, "Dados inválidos.", campos);
+  }
+
+  return {
+    nome: corpo.nome.trim(),
+    variedade: textoOuNull(corpo.variedade),
+    descricao: textoOuNull(corpo.descricao),
+    temperaturaMin: corpo.temperaturaMin,
+    temperaturaMax: corpo.temperaturaMax,
+    umidadeMin: corpo.umidadeMin,
+    umidadeMax: corpo.umidadeMax,
+  };
+}
+
+// A query string sempre chega como texto, entao aqui converter para numero e correto.
+// O formato e conferido antes: Number() aceitaria "0x10" ou "1e2".
+function converterCoordenada(valor, nome, min, max) {
+  if (valor === undefined || valor === "") return { erro: `${nome} é obrigatória.` };
+  if (typeof valor !== "string" || !/^-?\d+(\.\d+)?$/.test(valor.trim())) {
+    return { erro: `${nome} deve ser um número.` };
+  }
+  const numero = Number(valor.trim());
+  if (numero < min || numero > max) return { erro: `${nome} deve estar entre ${min} e ${max}.` };
+  return { numero };
+}
+
+function validarCoordenadas(query) {
+  const lat = converterCoordenada(query.lat, "lat", -90, 90);
+  const lon = converterCoordenada(query.lon, "lon", -180, 180);
+
+  const campos = {};
+  if (lat.erro) campos.lat = lat.erro;
+  if (lon.erro) campos.lon = lon.erro;
+  if (Object.keys(campos).length > 0) {
+    throw new ErroHttp(400, "Coordenadas inválidas.", campos);
+  }
+
+  return { latitude: lat.numero, longitude: lon.numero };
+}
+
+module.exports = { validarCultura, validarCoordenadas, validarId };
