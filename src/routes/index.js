@@ -13,6 +13,6 @@ routes.get('/health', (req, res) => {
 routes.use(culturaRoutes);
 // Com prefixo: sem ele, o "/:id" de propriedades capturava /sensores, /health etc.
 routes.use('/propriedades', propriedadeRoutes);
-routes.use(sensorRoutes); // <-- Usa diretamente, pois o ficheiro já tem '/sensores'
+routes.use('/sensores', sensorRoutes);
 
 module.exports = routes;
