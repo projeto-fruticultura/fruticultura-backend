@@ -249,6 +249,88 @@ Os perfis definitivos deverão ser validados com o professor.
 
 Os demais integrantes deverão ajudar em endpoints, revisões, integrações, correções e testes.
 
+## Como rodar localmente
+
+### Pré-requisitos
+
+- Node.js 18.18 ou superior;
+- npm;
+- acesso a um banco PostgreSQL (ex.: o do Render).
+
+### Passo a passo
+
+1. Instale as dependências:
+
+   ```bash
+   npm install
+   ```
+
+2. Copie o `.env.example` para `.env` e preencha os valores reais (a `DATABASE_URL` é a **External Database URL** do Render):
+
+   ```bash
+   cp .env.example .env
+   ```
+
+   No PowerShell: `Copy-Item .env.example .env`. O `.env` nunca vai para o Git.
+
+3. Teste a conexão com o banco (só lê, não altera nada):
+
+   ```bash
+   npm run db:testar
+   ```
+
+   - `P4001 ... empty`: conectou e o banco está vazio;
+   - aparecem models: conectou, mas o banco já tem tabelas. Não rode a migration sem conversar com o grupo, pois o Prisma pode propor apagar o banco;
+   - `P1001` / `P1000`: servidor inacessível ou usuário/senha errados.
+
+4. Crie as tabelas:
+
+   ```bash
+   npm run db:migrar
+   ```
+
+5. Popule o banco com o admin, as culturas e as fazendas de exemplo (pode rodar mais de uma vez sem duplicar):
+
+   ```bash
+   npm run db:seed
+   ```
+
+6. Suba o servidor:
+
+   ```bash
+   npm run dev
+   ```
+
+   Teste em `http://localhost:3000/api/health`, que deve responder `{ "status": "ok" }`.
+
+O Prisma está fixado na versão 6.19.3. Não rode `npx prisma init` nem crie `prisma.config.ts`: com esse arquivo o `.env` deixa de ser carregado automaticamente.
+
+### Endpoints prontos: Propriedades
+
+| Verbo | Rota | O que faz | Sucesso |
+|---|---|---|---|
+| GET | `/api/health` | Confere se o servidor está no ar | 200 |
+| GET | `/api/propriedades` | Lista as propriedades ativas por nome, com `totalLotes` e `totalSensores` | 200 |
+| GET | `/api/propriedades/:id` | Detalhe de uma propriedade ativa, com as contagens | 200 |
+| POST | `/api/propriedades` | Cadastra uma propriedade | 201 |
+| PUT | `/api/propriedades/:id` | Edita os campos do cadastro | 200 |
+| DELETE | `/api/propriedades/:id` | Exclusão lógica (status passa a `INATIVO`) | 204 |
+
+Corpo do POST/PUT (todos obrigatórios; outros campos são ignorados):
+
+```json
+{
+  "nome": "Fazenda São Jorge",
+  "area": 120.5,
+  "cidade": "Petrolina",
+  "uf": "PE",
+  "latitude": -9.3346,
+  "longitude": -40.6072
+}
+```
+
+Erros respondem em JSON no formato `{ "erro": "mensagem" }`. Validação inválida (400) inclui também `campos`, com uma mensagem por campo. Id não numérico: 400. Propriedade inexistente ou inativa: 404.
+
 ## Pré-requisitos
 
 - Node.js;

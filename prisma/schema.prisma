@@ -1,0 +1,92 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+// A URL fica aqui (e nao em prisma.config.ts) para o Prisma 6 ler o .env sozinho.
+datasource db {
+  provider = "postgresql"
+  url = env("DATABASE_URL")
+}
+
+enum Perfil {
+  PRODUTOR
+  TECNICO
+  ADMIN
+}
+
+enum Status {
+  ATIVO
+  INATIVO
+}
+
+// Sem cpf por enquanto: decisao pendente no grupo (LGPD, minimizacao de dados).
+model Usuario {
+  id           Int           @id @default(autoincrement())
+  nome         String        @db.VarChar(150)
+  email        String        @unique @db.VarChar(254)
+  senha        String        @db.VarChar(255)
+  perfil       Perfil
+  status       Status        @default(ATIVO)
+  propriedades Propriedade[]
+  criadoEm     DateTime      @default(now())
+  atualizadoEm DateTime      @updatedAt
+}
+
+model Propriedade {
+  id           Int      @id @default(autoincrement())
+  nome         String   @db.VarChar(255)
+  area         Decimal  @db.Decimal(10, 2)
+  uf           String   @db.Char(2)
+  cidade       String   @db.VarChar(100)
+  latitude     Decimal  @db.Decimal(10, 8)
+  longitude    Decimal  @db.Decimal(11, 8)
+  status       Status   @default(ATIVO)
+  usuarioId    Int
+  usuario      Usuario  @relation(fields: [usuarioId], references: [id])
+  lotes        Lote[]
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  @@index([usuarioId])
+}
+
+model Cultura {
+  id             Int     @id @default(autoincrement())
+  nome           String  @db.VarChar(100)
+  variedade      String? @db.VarChar(100)
+  descricao      String? @db.Text
+  temperaturaMin Decimal @db.Decimal(5, 2)
+  temperaturaMax Decimal @db.Decimal(5, 2)
+  umidadeMin     Decimal @db.Decimal(5, 2)
+  umidadeMax     Decimal @db.Decimal(5, 2)
+  lotes          Lote[]
+}
+
+model Lote {
+  id               Int         @id @default(autoincrement())
+  identificacao    String      @db.VarChar(100)
+  area             Decimal     @db.Decimal(10, 2)
+  dataPlantacao    DateTime    @db.Date
+  colheitaEstimada DateTime?   @db.Date
+  situacao         String      @db.VarChar(30)
+  propriedadeId    Int
+  culturaId        Int
+  propriedade      Propriedade @relation(fields: [propriedadeId], references: [id])
+  cultura          Cultura     @relation(fields: [culturaId], references: [id])
+  sensores         Sensor[]
+
+  @@index([propriedadeId])
+}
+
+model Sensor {
+  id             Int      @id @default(autoincrement())
+  codigo         String   @unique @db.VarChar(45)
+  tipo           String   @db.VarChar(45)
+  localizacao    String?  @db.VarChar(150)
+  dataInstalacao DateTime @db.Date
+  status         Status   @default(ATIVO)
+  loteId         Int
+  lote           Lote     @relation(fields: [loteId], references: [id])
+
+  @@index([loteId])
+}
