@@ -3,6 +3,7 @@ const culturaRoutes = require('./culturaRoutes');
 const propriedadeRoutes = require('./propriedadeRoutes');
 const sensorRoutes = require('./sensorRoutes');
 const mercadoRoutes = require('./mercadoRoutes'); // Importa aqui
+const authRoutes = require('./authRoutes');
 
 const routes = Router();
 
@@ -14,5 +15,7 @@ routes.use('/culturas', culturaRoutes);
 routes.use('/propriedades', propriedadeRoutes);
 routes.use('/sensores', sensorRoutes);
 routes.use('/precos', mercadoRoutes); // <--- Tem de estar assim: /precos
+// Login publico; /me e /logout exigem token. As rotas acima ainda nao exigem login.
+routes.use('/auth', authRoutes);
 
 module.exports = routes;
