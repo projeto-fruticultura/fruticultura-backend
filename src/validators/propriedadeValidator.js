@@ -45,8 +45,6 @@ function validarPropriedade(corpo) {
   else if (!ehNumero(area)) campos.area = "area deve ser um número.";
   else if (area <= 0) campos.area = "area deve ser maior que zero.";
   else if (area > AREA_MAXIMA) campos.area = `area deve ser no máximo ${AREA_MAXIMA}.`;
-  // String(area) de um numero positivo nesse limite nunca usa notacao cientifica,
-  // exceto valores minusculos (ex.: 1e-7), que tambem devem ser recusados.
   else if (!/^\d+(\.\d{1,2})?$/.test(String(area))) campos.area = "area deve ter no máximo 2 casas decimais.";
 
   const erroCidade = validarTexto(corpo.cidade, 2, 100);
@@ -58,11 +56,17 @@ function validarPropriedade(corpo) {
     campos.uf = "uf deve ser a sigla de um estado brasileiro (ex.: PE, BA).";
   }
 
-  const erroLatitude = validarFaixa(corpo.latitude, -90, 90);
-  if (erroLatitude) campos.latitude = `latitude ${erroLatitude}`;
+  // Latitude opcional: só valida se o cliente realmente enviou algum valor
+  if (corpo.latitude !== undefined && corpo.latitude !== null && corpo.latitude !== "") {
+    const erroLatitude = validarFaixa(corpo.latitude, -90, 90);
+    if (erroLatitude) campos.latitude = `latitude ${erroLatitude}`;
+  }
 
-  const erroLongitude = validarFaixa(corpo.longitude, -180, 180);
-  if (erroLongitude) campos.longitude = `longitude ${erroLongitude}`;
+  // Longitude opcional: só valida se o cliente realmente enviou algum valor
+  if (corpo.longitude !== undefined && corpo.longitude !== null && corpo.longitude !== "") {
+    const erroLongitude = validarFaixa(corpo.longitude, -180, 180);
+    if (erroLongitude) campos.longitude = `longitude ${erroLongitude}`;
+  }
 
   if (Object.keys(campos).length > 0) {
     throw new ErroHttp(400, "Dados inválidos.", campos);

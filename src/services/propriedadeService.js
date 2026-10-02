@@ -78,9 +78,52 @@ async function criar(dados) {
     throw new ErroHttp(500, "Não foi possível definir o responsável pela propriedade.");
   }
 
+  // 1. Mapeamento de coordenadas centrais por UF para preenchimento automático
+  const coordenadasUf = {
+    AC: { lat: -9.97, lon: -67.81 },
+    AL: { lat: -9.66, lon: -35.73 },
+    AP: { lat: 0.03, lon: -51.06 },
+    AM: { lat: -3.11, lon: -60.02 },
+    BA: { lat: -12.97, lon: -38.51 },
+    CE: { lat: -3.71, lon: -38.54 },
+    DF: { lat: -15.79, lon: -47.88 },
+    ES: { lat: -20.31, lon: -40.33 },
+    GO: { lat: -16.68, lon: -49.25 },
+    MA: { lat: -2.53, lon: -44.30 },
+    MT: { lat: -15.60, lon: -56.09 },
+    MS: { lat: -20.44, lon: -54.64 },
+    MG: { lat: -19.91, lon: -43.93 },
+    PA: { lat: -1.45, lon: -48.49 },
+    PB: { lat: -7.11, lon: -34.86 },
+    PR: { lat: -25.42, lon: -49.27 },
+    PE: { lat: -8.04, lon: -34.87 },
+    PI: { lat: -5.08, lon: -42.80 },
+    RJ: { lat: -22.90, lon: -43.17 },
+    RN: { lat: -5.79, lon: -35.20 },
+    RS: { lat: -30.03, lon: -51.23 },
+    RO: { lat: -8.76, lon: -63.90 },
+    RR: { lat: 2.82, lon: -60.67 },
+    SC: { lat: -27.59, lon: -48.54 },
+    SP: { lat: -23.55, lon: -46.63 },
+    SE: { lat: -10.94, lon: -37.07 },
+    TO: { lat: -10.17, lon: -48.33 }
+  };
+
+  let dadosParaCriar = { ...dados };
+
+  // 2. Se a UF foi informada mas latitude/longitude vieram vazias, preenche automaticamente
+  if (dadosParaCriar.uf && (!dadosParaCriar.latitude || !dadosParaCriar.longitude)) {
+    const ufMaiuscula = dadosParaCriar.uf.toUpperCase();
+    const coordsRegiao = coordenadasUf[ufMaiuscula] || { lat: -9.33, lon: -40.60 }; // Padrão Vale se não achar
+    
+    if (!dadosParaCriar.latitude) dadosParaCriar.latitude = coordsRegiao.lat;
+    if (!dadosParaCriar.longitude) dadosParaCriar.longitude = coordsRegiao.lon;
+  }
+
   const propriedade = await prisma.propriedade.create({
-    data: { ...dados, usuarioId: dono.id },
+    data: { ...dadosParaCriar, usuarioId: dono.id },
   });
+  
   // Recem-criada: ainda nao tem lotes nem sensores.
   return formatar(propriedade, 0);
 }
