@@ -114,7 +114,7 @@ prisma/
 
 ## Endpoints planejados
 
-Os endpoints abaixo são uma proposta inicial e poderão ser ajustados.
+Os endpoints abaixo são uma proposta inicial e poderão ser ajustados. Já estão prontos: Propriedades, Culturas, Sensores, `POST /api/auth/login`, `GET /api/auth/me`, `POST /api/auth/logout` e `POST /api/usuarios` (veja [Endpoints prontos: Autenticação e usuários](#endpoints-prontos-autenticação-e-usuários)).
 
 ### Autenticação
 
@@ -220,7 +220,7 @@ A NASA POWER é uma fonte meteorológica externa. Ela não substitui as leituras
 
 ## Autenticação e autorização
 
-A autenticação será baseada em JWT.
+A autenticação usa JWT e o login já está pronto (veja [Endpoints prontos: Autenticação e usuários](#endpoints-prontos-autenticação-e-usuários)). Hoje só `GET /api/auth/me`, `POST /api/auth/logout` e `POST /api/usuarios` exigem token; `/api/propriedades`, `/api/culturas`, `/api/sensores` e `/api/precos` continuam abertas até a próxima tarefa.
 
 Fluxo planejado:
 
@@ -282,7 +282,9 @@ Os comandos abaixo são para o **cmd** do Windows, que é o terminal padrão do 
    npm install
    ```
 
-2. Coloque na raiz do projeto (a mesma pasta do `package.json`) o arquivo `.env` que o Igor mandou no privado. Não altere o conteúdo, não reenvie e não publique esse arquivo.
+2. Coloque na raiz do projeto (a mesma pasta do `package.json`) o arquivo `.env` que o Igor mandou no privado. Não reenvie e não publique esse arquivo.
+
+   Acrescente nele o **seu próprio** `JWT_SECRET` (cada pessoa gera o seu; veja [Variáveis de ambiente](#variáveis-de-ambiente)). Sem ele, o servidor não sobe.
 
 3. Teste a conexão com o banco (só lê, não altera nada):
 
@@ -308,15 +310,10 @@ Use esta opção quando for mexer no `schema.prisma`. Avise o grupo antes (veja 
 
 1. Clone o repositório e instale as dependências (igual ao passo 1 da Opção 1).
 
-2. Crie o `.env` a partir do modelo:
-
-   ```cmd
-   copy .env.example .env
-   ```
-
-   Abra o `.env` e preencha:
+2. Crie na raiz do projeto um arquivo chamado `.env` com as variáveis do modelo em [Variáveis de ambiente](#variáveis-de-ambiente) (hoje o repositório não tem `.env.example`) e preencha:
    - `DATABASE_URL`: a URL do **seu** banco PostgreSQL, que precisa estar vazio (no Render, é a **External Database URL**);
-   - `SEED_ADMIN_SENHA`: troque por uma senha sua.
+   - `SEED_ADMIN_SENHA`: troque por uma senha sua;
+   - `JWT_SECRET`: gere o seu com o comando indicado lá.
 
    O `.env` nunca vai para o Git.
 
@@ -364,6 +361,7 @@ O `npm run db:testar` só lê a estrutura do banco e não altera nada.
 | `Environment variable not found: DATABASE_URL` | O `.env` não está na raiz do projeto, foi salvo com outro nome (ex.: `.env.txt`) ou a variável está com o nome errado. | Confira se o arquivo se chama exatamente `.env`, se está na mesma pasta do `package.json` e se tem a linha `DATABASE_URL=...`. |
 | `Can't reach database server` (`P1001`) | O endereço da URL está errado, foi usada a URL interna em vez da External Database URL do Render, ou o banco está fora do ar. | Confira a URL (Opção 2) ou peça o `.env` atualizado ao Igor (Opção 1). |
 | `Authentication failed` (`P1000`) | O usuário ou a senha dentro da `DATABASE_URL` estão errados, ou a senha do banco foi trocada. | Copie a URL de novo (Opção 2) ou peça o `.env` atualizado (Opção 1). |
+| `A variável de ambiente JWT_SECRET não foi definida no .env` (ou `precisa ter pelo menos 32 caracteres`) | Falta o `JWT_SECRET` no `.env`, ou ele é curto demais. O servidor não sobe sem ele. | Gere um com o comando de [Variáveis de ambiente](#variáveis-de-ambiente) e acrescente a linha `JWT_SECRET="..."` no `.env`. |
 | `@prisma/client did not initialize yet` (ou outro erro dizendo para rodar `prisma generate`) | O Prisma Client não foi gerado depois do `npm install` ou de uma mudança no `schema.prisma`. | Rode `npx prisma generate` e suba o servidor de novo. |
 
 ### Versão do Prisma
@@ -445,7 +443,56 @@ Corpo do POST/PUT (`localizacao` é opcional; `dataInstalacao` em `AAAA-MM-DD`, 
 
 Nas respostas, `dataInstalacao` também vem em `AAAA-MM-DD`.
 
-> **Ainda não há login:** todas as rotas acima estão abertas por enquanto. A autenticação (JWT) entra numa próxima tarefa.
+### Endpoints prontos: Autenticação e usuários
+
+| Verbo | Rota | Acesso | O que faz | Sucesso |
+|---|---|---|---|---|
+| POST | `/api/auth/login` | público | Confere e-mail e senha e devolve o token e o usuário. Limite: 10 tentativas com falha a cada 15 minutos por IP (depois, 429) | 200 |
+| GET | `/api/auth/me` | token | Devolve o usuário dono do token | 200 |
+| POST | `/api/auth/logout` | token | Só responde 204: o servidor não guarda sessão. Quem "desloga" é o front, apagando o token, que expira sozinho (padrão: 2h) | 204 |
+| POST | `/api/usuarios` | token de ADMIN | Cria um usuário com perfil `PRODUTOR`, `TECNICO` ou `ADMIN` | 201 |
+
+Não há cadastro público: só um ADMIN logado cria usuários, **inclusive outros ADMIN**. O primeiro ADMIN é o do seed (`SEED_ADMIN_EMAIL`).
+
+Corpo do login (o e-mail aceita maiúsculas e espaços nas pontas; a senha tem no máximo 72 bytes):
+
+```json
+{ "email": "admin@valesafra.local", "senha": "sua-senha" }
+```
+
+Resposta do login (a senha, nem em hash, nunca aparece em nenhuma resposta):
+
+```json
+{
+  "token": "eyJ...",
+  "usuario": { "id": 1, "nome": "Administrador", "email": "admin@valesafra.local", "perfil": "ADMIN", "status": "ATIVO" }
+}
+```
+
+Nas rotas que exigem login, envie o token no header:
+
+```text
+Authorization: Bearer <token>
+```
+
+Corpo do `POST /api/usuarios` (todos obrigatórios; o usuário sempre nasce `ATIVO`, e `id`, `status` e outros campos são ignorados):
+
+```json
+{ "nome": "Maria Silva", "email": "maria@exemplo.com", "senha": "no-minimo-8-bytes", "perfil": "TECNICO" }
+```
+
+Regras: `nome` com 1 a 150 caracteres; `email` em formato válido, até 254 caracteres, gravado em minúsculas; `senha` de 8 a 72 bytes (o bcrypt ignora o que passa de 72); `perfil` `PRODUTOR`, `TECNICO` ou `ADMIN`.
+
+| Status | Quando |
+|---|---|
+| 400 | Dados inválidos, com `campos` (uma mensagem por campo). |
+| 401 `"E-mail ou senha inválidos."` | Login com e-mail inexistente, senha errada ou usuário `INATIVO`: a mesma mensagem nos três casos, para não revelar quais e-mails existem. |
+| 401 `"Não autenticado."` | Sem token, token inválido ou expirado, ou usuário do token inexistente ou `INATIVO`. Desativar um usuário corta o acesso na hora, mesmo com o token no prazo. |
+| 403 `"Sem permissão para esta ação."` | Usuário logado sem o perfil exigido (ex.: `TECNICO` em `POST /api/usuarios`). |
+| 409 `"E-mail já cadastrado."` | `POST /api/usuarios` com e-mail que já existe (sem diferenciar maiúsculas). |
+| 429 | Muitas tentativas de login com falha. |
+
+> **As demais rotas continuam abertas:** `/api/propriedades`, `/api/culturas`, `/api/sensores` e `/api/precos` ainda não exigem login. A proteção delas entra numa próxima tarefa. `/api/auth/esqueci-senha` e `/api/auth/redefinir-senha` ainda não existem (respondem 404).
 
 ## Regras do banco
 
@@ -462,21 +509,43 @@ Nas respostas, `dataInstalacao` também vem em `AAAA-MM-DD`.
 
 ## Variáveis de ambiente
 
-O `.env` fica na raiz do projeto e **nunca vai para o Git** (está no `.gitignore`). O modelo é o `.env.example`. Nunca publique credenciais reais: os exemplos abaixo são fictícios.
+O `.env` fica na raiz do projeto e **nunca vai para o Git** (está no `.gitignore`). Hoje o repositório não tem `.env.example`: crie o `.env` com as variáveis abaixo. Nunca publique credenciais reais: os exemplos são fictícios.
+
+```env
+DATABASE_URL="postgresql://USUARIO:SENHA@HOST.render.com/NOME_DO_BANCO?sslmode=require"
+PORT=3000
+CORS_ORIGIN="http://localhost:5173"
+SEED_ADMIN_EMAIL="admin@valesafra.local"
+SEED_ADMIN_SENHA="troque-esta-senha"
+JWT_SECRET="cole-aqui-o-valor-gerado-pelo-comando-abaixo"
+JWT_EXPIRES_IN="2h"
+```
 
 | Variável | Para que serve | Exemplo fictício |
 |---|---|---|
 | `DATABASE_URL` | Endereço de conexão com o PostgreSQL, lido pelo Prisma (`schema.prisma`). | `postgresql://USUARIO:SENHA@HOST.render.com/NOME_DO_BANCO?sslmode=require` |
 | `PORT` | Porta em que o servidor sobe. Se faltar, usa 3000. | `3000` |
 | `CORS_ORIGIN` | Única origem (endereço do frontend) que pode chamar a API pelo navegador. Se faltar, nenhuma origem externa é liberada. | `http://localhost:5173` |
-| `SEED_ADMIN_EMAIL` | E-mail do usuário ADMIN criado pelo seed. Também é usado pela API como dono das propriedades cadastradas, até o login ficar pronto. | `admin@valesafra.local` |
+| `SEED_ADMIN_EMAIL` | E-mail do usuário ADMIN criado pelo seed. Também é usado pela API como dono das propriedades cadastradas, até as rotas de propriedades passarem a exigir login. | `admin@valesafra.local` |
 | `SEED_ADMIN_SENHA` | Senha do ADMIN criado pelo seed (salva no banco como hash bcrypt). | `troque-esta-senha` |
+| `JWT_SECRET` | **Obrigatória.** Chave que assina os tokens de login. Mínimo de 32 caracteres; sem ela, o servidor não sobe. | gerada pelo comando abaixo |
+| `JWT_EXPIRES_IN` | Opcional. Validade do token, com unidade (`30m`, `2h`, `1d`). Se faltar, usa `2h`. | `2h` |
+
+Como gerar o seu `JWT_SECRET` (no cmd, na pasta do projeto):
+
+```cmd
+node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+```
+
+Copie o valor gerado para a linha `JWT_SECRET="..."` do seu `.env`.
+
+> [!IMPORTANT]
+> **Cada dev gera o próprio `JWT_SECRET`.** Nunca versione, nunca mande no grupo e nunca cole em chat de IA: quem tem o segredo consegue criar tokens válidos de qualquer usuário, inclusive ADMIN. Trocar o segredo invalida todos os tokens já emitidos (todos precisam entrar de novo).
 
 **Ainda não usadas** (entram nas próximas tarefas):
 
 | Variável | Para que vai servir | Exemplo fictício |
 |---|---|---|
-| `JWT_SECRET` | Chave para assinar os tokens de login (JWT). | `troque-por-uma-chave-longa-e-aleatoria` |
 | `NASA_POWER_BASE_URL` | Endereço base da NASA POWER API. | `https://power.larc.nasa.gov/api` |
 
 ## Testes
@@ -509,5 +578,5 @@ Regras:
 
 MVP em desenvolvimento. A 1ª entrega é em 13/10/2026.
 
-- Pronto: Propriedades, Culturas e Sensores (APIs em `/api/propriedades`, `/api/culturas` e `/api/sensores`).
-- Próximas tarefas: Lote, Leituras (ThingSpeak) e login.
+- Pronto: Propriedades, Culturas e Sensores (APIs em `/api/propriedades`, `/api/culturas` e `/api/sensores`), login (`/api/auth/login`, `/api/auth/me`, `/api/auth/logout`) e criação de usuários por ADMIN (`POST /api/usuarios`).
+- Próximas tarefas: exigir login nas rotas existentes, Lote, Leituras (ThingSpeak) e recuperação de senha.

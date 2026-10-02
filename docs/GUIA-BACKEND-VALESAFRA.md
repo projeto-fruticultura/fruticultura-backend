@@ -34,7 +34,7 @@ Use o terminal do VS Code (é **cmd**, então use `copy`).
 **Passo 3. Configurar o `.env`**
 
 *Forma A: o Igor mandou o arquivo `.env` pronto (mais simples)*
-- Salve na raiz da pasta do projeto (o mesmo lugar do `package.json`). O nome tem que ser exatamente `.env`, sem `.txt` e sem `_` na frente. Se o Windows mudou o nome, renomeie. Depois pule para o passo 4.
+- Salve na raiz da pasta do projeto (o mesmo lugar do `package.json`). O nome tem que ser exatamente `.env`, sem `.txt` e sem `_` na frente. Se o Windows mudou o nome, renomeie. Depois vá para *Nas duas formas*, logo abaixo.
 
 *Forma B: criar você mesmo (só com a URL do banco)*
 1. `copy .env.example .env`
@@ -43,6 +43,12 @@ Use o terminal do VS Code (é **cmd**, então use `copy`).
    `DATABASE_URL="cole-aqui-a-url"`
 4. As outras linhas (`PORT`, `CORS_ORIGIN`...) já vêm no exemplo: deixe como estão.
 5. Confira que o `.env` **não** aparece em `git status` (ele fica escondido de propósito, para a senha nunca ir pro GitHub).
+
+*Nas duas formas: o seu `JWT_SECRET` (chave do login)*
+1. Gere o seu, no terminal, na pasta do projeto: `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"`
+2. Acrescente no `.env` a linha `JWT_SECRET="cole-aqui-o-valor-gerado"`. Sem ela (ou com menos de 32 caracteres), o servidor não sobe.
+3. Opcional: `JWT_EXPIRES_IN="2h"` (validade do login; se faltar, já é 2h).
+4. **Cada um gera o seu.** Nunca mande o `JWT_SECRET` no grupo, no GitHub ou na IA: com ele, qualquer um cria um login falso de ADMIN.
 
 **Passo 4. Testar a conexão:** `npm run db:testar`
 Só lê o banco, não muda nada. Se funcionou, aparecem as tabelas (Usuario, Propriedade, Cultura, Lote, Sensor).
