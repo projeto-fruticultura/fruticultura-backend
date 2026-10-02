@@ -1,4 +1,5 @@
 const propriedadeService = require("../services/propriedadeService");
+const propriedadeClimaService = require("../services/propriedadeClimaService");
 const { validarPropriedade, validarId } = require("../validators/propriedadeValidator");
 
 // No Express 5, erro lancado em funcao async ja vai para o middleware de erro,
@@ -30,4 +31,10 @@ async function remover(req, res) {
   res.status(204).end();
 }
 
-module.exports = { listar, buscarPorId, criar, atualizar, remover };
+async function buscarClima(req, res) {
+  const id = validarId(req.params.id);
+  const dadosClima = await propriedadeClimaService.consultarClimaPropriedade(id);
+  return res.status(200).json(dadosClima);
+}
+
+module.exports = { listar, buscarPorId, criar, atualizar, remover, buscarClima };

@@ -2,7 +2,7 @@ const { Router } = require('express');
 const culturaRoutes = require('./culturaRoutes');
 const propriedadeRoutes = require('./propriedadeRoutes');
 const sensorRoutes = require('./sensorRoutes');
-const mercadoRoutes = require('./mercadoRoutes'); // Importa aqui
+const mercadoRoutes = require('./mercadoRoutes.js'); // Importa aqui
 const authRoutes = require('./authRoutes');
 const usuarioRoutes = require('./usuarioRoutes');
 

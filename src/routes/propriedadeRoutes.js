@@ -4,6 +4,7 @@ const controller = require("../controllers/propriedadeController");
 const router = Router();
 
 router.get("/", controller.listar);
+router.get("/:id/clima", controller.buscarClima);
 router.get("/:id", controller.buscarPorId);
 router.post("/", controller.criar);
 router.put("/:id", controller.atualizar);
