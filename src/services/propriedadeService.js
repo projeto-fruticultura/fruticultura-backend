@@ -1,5 +1,6 @@
 const prisma = require("../config/prisma");
 const { ErroHttp } = require("../middlewares/erros");
+const { filtroPropriedade } = require("./escopoDono");
 
 const ERRO_NAO_ENCONTRADA = "Propriedade não encontrada.";
 
@@ -35,9 +36,9 @@ function formatar(propriedade, totalSensores) {
   };
 }
 
-async function listar() {
+async function listar(usuario) {
   const propriedades = await prisma.propriedade.findMany({
-    where: { status: "ATIVO" },
+    where: { status: "ATIVO", AND: [filtroPropriedade(usuario)] },
     orderBy: { nome: "asc" },
     select: { id: true, nome: true, cidade: true, uf: true, _count: { select: { lotes: true } } },
   });
@@ -54,10 +55,11 @@ async function listar() {
   }));
 }
 
-async function buscarPorId(id) {
-  // Propriedade INATIVA conta como excluida: responde 404 como se nao existisse.
+async function buscarPorId(id, usuario) {
+  // Propriedade INATIVA ou de outro dono: 404, como se nao existisse.
+  // 404 (e nao 403) para nao revelar que o id existe.
   const propriedade = await prisma.propriedade.findFirst({
-    where: { id, status: "ATIVO" },
+    where: { id, status: "ATIVO", AND: [filtroPropriedade(usuario)] },
     include: { _count: { select: { lotes: true } } },
   });
   if (!propriedade) throw new ErroHttp(404, ERRO_NAO_ENCONTRADA);
@@ -66,17 +68,9 @@ async function buscarPorId(id) {
   return formatar(propriedade, sensores.get(id) || 0);
 }
 
-async function criar(dados) {
-  // TODO(BE11): trocar pelo usuário logado (req.usuario.id)
-  // Enquanto o login nao existe, o dono e o admin do seed. Nunca aceitar usuarioId do body.
-  const dono = await prisma.usuario.findUnique({
-    where: { email: process.env.SEED_ADMIN_EMAIL || "" },
-    select: { id: true },
-  });
-  if (!dono) {
-    console.error("Usuario do SEED_ADMIN_EMAIL nao encontrado. Rode npm run db:seed.");
-    throw new ErroHttp(500, "Não foi possível definir o responsável pela propriedade.");
-  }
+async function criar(dados, usuario) {
+  // O dono e sempre o usuario logado (para ADMIN, ele mesmo). Nunca vem do body:
+  // o validator ja descarta usuarioId, entao ninguem cria propriedade em nome de outro.
 
   // 1. Mapeamento de coordenadas centrais por UF para preenchimento automático
   const coordenadasUf = {
@@ -121,28 +115,30 @@ async function criar(dados) {
   }
 
   const propriedade = await prisma.propriedade.create({
-    data: { ...dadosParaCriar, usuarioId: dono.id },
+    data: { ...dadosParaCriar, usuarioId: usuario.id },
   });
   
   // Recem-criada: ainda nao tem lotes nem sensores.
   return formatar(propriedade, 0);
 }
 
-async function atualizar(id, dados) {
-  // updateMany permite filtrar por status: so edita se existir e estiver ATIVA.
+async function atualizar(id, dados, usuario) {
+  // updateMany permite filtrar por status e dono: so edita se existir, estiver ATIVA
+  // e for do usuario. Outro dono conta como 0 linhas, ou seja, 404.
   const { count } = await prisma.propriedade.updateMany({
-    where: { id, status: "ATIVO" },
+    where: { id, status: "ATIVO", AND: [filtroPropriedade(usuario)] },
     data: dados,
   });
   if (count === 0) throw new ErroHttp(404, ERRO_NAO_ENCONTRADA);
 
-  return buscarPorId(id);
+  return buscarPorId(id, usuario);
 }
 
-async function remover(id) {
+async function remover(id, usuario) {
   // Exclusao logica: a linha fica no banco para nao perder o historico ligado a ela.
+  // O filtro de dono no where faz a propriedade de outra pessoa dar 404.
   const { count } = await prisma.propriedade.updateMany({
-    where: { id, status: "ATIVO" },
+    where: { id, status: "ATIVO", AND: [filtroPropriedade(usuario)] },
     data: { status: "INATIVO" },
   });
   if (count === 0) throw new ErroHttp(404, ERRO_NAO_ENCONTRADA);

@@ -1,8 +1,9 @@
 const axios = require('axios');
 const prisma = require('../config/prisma');
 const { ErroHttp } = require('../middlewares/erros');
+const { filtroPropriedade } = require('./escopoDono');
 
-async function consultarClimaPropriedade(id) {
+async function consultarClimaPropriedade(id, usuario) {
   const idNumerico = parseInt(id, 10);
   
   if (isNaN(idNumerico)) {
@@ -10,8 +11,9 @@ async function consultarClimaPropriedade(id) {
   }
 
   // 1. Busca a propriedade diretamente no Prisma
+  // Com o filtro de dono: propriedade de outra pessoa da 404 aqui, antes de chamar a NASA.
   const propriedade = await prisma.propriedade.findFirst({
-    where: { id: idNumerico, status: "ATIVO" }
+    where: { id: idNumerico, status: "ATIVO", AND: [filtroPropriedade(usuario)] }
   });
 
   if (!propriedade) {
