@@ -56,7 +56,7 @@ Só lê o banco, não muda nada. Se funcionou, aparecem as tabelas (Usuario, Pro
 **Passo 5. Ligar o servidor:** `npm run dev`
 Abra no navegador:
 - `http://localhost:3000/api/health` (deve responder que está ok)
-- `http://localhost:3000/api/propriedades` (deve listar as 3 fazendas do seed: São Jorge, do Vorcaro e Santa Luiza)
+- `http://localhost:3000/api/propriedades` agora **exige login**: no navegador, sem token, o certo é aparecer `Não autenticado.` (401). Para ver a lista, faça login em `POST /api/auth/login` com o admin do seed e envie o token no header `Authorization: Bearer <token>`. Cada usuário vê só as próprias propriedades; o admin vê todas.
 
 **Se der erro:**
 
