@@ -28,4 +28,10 @@ function filtroSensor(usuario) {
   return Object.keys(filtro).length === 0 ? {} : { lote: filtro };
 }
 
-module.exports = { filtroPropriedade, filtroLote, filtroSensor };
+// Leitura herda o dono do sensor (leitura -> sensor -> lote -> propriedade).
+function filtroLeitura(usuario) {
+  const filtro = filtroSensor(usuario);
+  return Object.keys(filtro).length === 0 ? {} : { sensor: filtro };
+}
+
+module.exports = { filtroPropriedade, filtroLote, filtroSensor, filtroLeitura };
