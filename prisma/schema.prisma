@@ -71,6 +71,11 @@ model Lote {
   situacao         String      @db.VarChar(30)
   propriedadeId    Int
   culturaId        Int
+  // Exclusao logica: lote INATIVO fica escondido e a linha nunca e apagada (preserva o historico de leituras).
+  status           Status      @default(ATIVO)
+  // Opcionais: os lotes antigos nao tem coordenadas e nao se inventa valor. Sempre juntas ou nenhuma (regra no validator).
+  latitude         Decimal?    @db.Decimal(10, 8)
+  longitude        Decimal?    @db.Decimal(11, 8)
   propriedade      Propriedade @relation(fields: [propriedadeId], references: [id])
   cultura          Cultura     @relation(fields: [culturaId], references: [id])
   sensores         Sensor[]

@@ -433,7 +433,7 @@ Exigem token. Cada usuário vê só os sensores das próprias propriedades (veja
 | PUT | `/api/sensores/:id` | Edita os campos do cadastro (ADMIN ou PRODUTOR, só dos próprios). Código repetido: 409 | 200 |
 | DELETE | `/api/sensores/:id` | Exclusão lógica (status passa a `INATIVO`) (ADMIN ou PRODUTOR, só dos próprios) | 204 |
 
-Corpo do POST/PUT (`localizacao` é opcional; `dataInstalacao` em `AAAA-MM-DD`, data real e não futura; `loteId` precisa ser número e de um lote visível ao usuário; outros campos são ignorados):
+Corpo do POST/PUT (`localizacao` é opcional; `dataInstalacao` em `AAAA-MM-DD`, data real e não futura; `loteId` precisa ser número e de um lote ativo visível ao usuário; outros campos são ignorados):
 
 ```json
 {
@@ -447,14 +447,37 @@ Corpo do POST/PUT (`localizacao` é opcional; `dataInstalacao` em `AAAA-MM-DD`, 
 
 Nas respostas, `dataInstalacao` também vem em `AAAA-MM-DD`.
 
-Erros do cadastro e da edição: `loteId` inexistente ou de outra pessoa: 404 "Lote não encontrado." (a mesma resposta nos dois casos); lote de propriedade excluída (`INATIVO`): 400. Sensor de outra pessoa: 404.
+Erros do cadastro e da edição: `loteId` inexistente, de outra pessoa ou de lote `INATIVO`: 404 "Lote não encontrado." (a mesma resposta nos três casos); lote ativo de propriedade excluída (`INATIVO`): 400. Sensor de outra pessoa: 404.
 
-### Endpoints prontos: Lotes (somente leitura)
+### Endpoints prontos: Lotes
+
+Exigem token. Cada usuário vê só os lotes das próprias propriedades (veja [Quem vê o quê](#quem-vê-o-quê-propriedades-sensores-e-lotes)).
 
 | Verbo | Rota | O que faz | Sucesso |
 |---|---|---|---|
-| GET | `/api/lotes?propriedadeId=` | Lista os lotes visíveis ao usuário. O filtro `propriedadeId` é opcional e precisa ser um inteiro positivo (senão, 400 com `campos`). Com `propriedadeId` de outra pessoa, a lista vem vazia | 200 |
-| GET | `/api/lotes/:id` | Detalhe de um lote. Lote de outra pessoa: 404 | 200 |
+| GET | `/api/lotes?propriedadeId=` | Lista os lotes ativos visíveis ao usuário. O filtro `propriedadeId` é opcional e precisa ser um inteiro positivo (senão, 400 com `campos`). Com `propriedadeId` de outra pessoa, a lista vem vazia | 200 |
+| GET | `/api/lotes/:id` | Detalhe de um lote ativo. Lote de outra pessoa, inativo ou de propriedade inativa: 404 | 200 |
+| POST | `/api/lotes` | Cadastra um lote (ADMIN ou PRODUTOR). A propriedade precisa ser do usuário | 201 |
+| PUT | `/api/lotes/:id` | Edita o lote de forma **parcial**: o que for omitido mantém o valor salvo (ADMIN ou PRODUTOR, só dos próprios). O `propriedadeId` nunca muda | 200 |
+| DELETE | `/api/lotes/:id?confirmar=true` | Exclusão lógica: o lote vira `INATIVO` e a linha nunca é apagada. Com sensores ativos, pede confirmação (veja abaixo) | 204 |
+
+Corpo do POST (`colheitaEstimada`, `latitude` e `longitude` são opcionais; os outros campos são obrigatórios):
+
+```json
+{
+  "identificacao": "Lote 5",
+  "area": 12.5,
+  "dataPlantacao": "2026-01-10",
+  "colheitaEstimada": "2026-12-20",
+  "situacao": "EM_CRESCIMENTO",
+  "propriedadeId": 1,
+  "culturaId": 2,
+  "latitude": -9.3346,
+  "longitude": -40.6072
+}
+```
+
+No PUT, mande só o que quer mudar. `"colheitaEstimada": null` limpa a data, e `"latitude": null` com `"longitude": null` (as duas juntas) limpam o ponto no mapa. Os campos `id`, `status` e, no PUT, `propriedadeId` enviados no corpo são **ignorados**: o lote novo nasce `ATIVO`.
 
 Exemplo de lote na resposta:
 
@@ -466,6 +489,9 @@ Exemplo de lote na resposta:
   "dataPlantacao": "2021-03-15",
   "colheitaEstimada": "2026-11-20",
   "situacao": "EM_PRODUCAO",
+  "status": "ATIVO",
+  "latitude": null,
+  "longitude": null,
   "propriedadeId": 1,
   "culturaId": 2,
   "cultura": { "id": 2, "nome": "Manga", "variedade": "Tommy Atkins" },
@@ -473,9 +499,27 @@ Exemplo de lote na resposta:
 }
 ```
 
-`area` vem como número, as datas em `AAAA-MM-DD` (`colheitaEstimada` pode ser `null`) e `totalSensores` conta só os sensores ativos. Lote de propriedade excluída (`INATIVO`) não aparece na lista e responde 404 por id.
+`area` vem como número, as datas em `AAAA-MM-DD` (`colheitaEstimada` pode ser `null`), `latitude` e `longitude` como número ou `null`, e `totalSensores` conta só os sensores ativos.
 
-Ainda não existe criar, editar nem apagar lote (POST, PUT e DELETE).
+**Regras de validação** (erro 400 com `campos`, uma mensagem por campo):
+
+- `identificacao` de 1 a 100 caracteres e `situacao` de 1 a 30 (texto livre), sem espaços sobrando nas pontas.
+- `area` é número maior que 0, com até 2 casas decimais.
+- `dataPlantacao` e `colheitaEstimada` em `AAAA-MM-DD`, datas reais. A `colheitaEstimada` não pode ser **anterior** à `dataPlantacao` (datas iguais são aceitas). No PUT, a regra vale sobre o resultado final: o que veio combinado com o que já está salvo.
+- **Coordenadas: as duas juntas ou nenhuma.** Mandar só uma dá 400. Números (não texto), `latitude` de -90 a 90, `longitude` de -180 a 180, até 8 casas decimais. São opcionais: os lotes que já existiam ficam com `latitude` e `longitude` nulas, sem valor inventado.
+- No cadastro, `propriedadeId` inexistente ou de outra pessoa: 404; propriedade `INATIVA`: 400; `culturaId` inexistente: 404.
+- `TECNICO` não vê nem escreve nada em lotes (lista vazia, e 403 ao criar, editar ou apagar).
+
+**Exclusão (`DELETE`)**
+
+| Situação | Resposta |
+|---|---|
+| Lote **sem** sensores ativos | 204. O lote vira `INATIVO` |
+| Lote **com** sensores ativos, sem `confirmar` | **409** com `{ "erro": "...", "totalSensores": N }`. Nada é alterado |
+| `?confirmar=true` | 204. Os sensores ativos do lote e o próprio lote viram `INATIVOS`, numa única transação (tudo ou nada) |
+| `confirmar` com qualquer outro valor (`false`, `abc`, vazio) | 400 |
+
+Um lote `INATIVO` fica escondido de todos, **inclusive do ADMIN**: some da lista e responde 404 em `GET`, `PUT` e `DELETE`. Não existe rota para reativar. O histórico é preservado: os sensores e as leituras de um lote inativo continuam consultáveis em `/api/sensores` e `/api/leituras`. Sensores inativos não recebem novas leituras, e cadastrar ou mover um sensor para um lote inativo dá 404.
 
 ### Quem vê o quê (propriedades, sensores e lotes)
 
@@ -631,5 +675,5 @@ Regras:
 
 MVP em desenvolvimento. A 1ª entrega é em 13/10/2026.
 
-- Pronto: Propriedades, Culturas, Sensores e Lotes (somente leitura) (APIs em `/api/propriedades`, `/api/culturas`, `/api/sensores` e `/api/lotes`), login (`/api/auth/login`, `/api/auth/me`, `/api/auth/logout`), criação de usuários por ADMIN (`POST /api/usuarios`) e visibilidade por dono em propriedades, sensores e lotes.
-- Próximas tarefas: exigir login em Culturas e Preços, criar, editar e apagar lote, ligar técnico a propriedades, Leituras (ThingSpeak) e recuperação de senha.
+- Pronto: Propriedades, Culturas, Sensores e Lotes (APIs em `/api/propriedades`, `/api/culturas`, `/api/sensores` e `/api/lotes`), login (`/api/auth/login`, `/api/auth/me`, `/api/auth/logout`), criação de usuários por ADMIN (`POST /api/usuarios`) e visibilidade por dono em propriedades, sensores e lotes.
+- Próximas tarefas: exigir login em Culturas e Preços, ligar técnico a propriedades, Leituras (ThingSpeak) e recuperação de senha.
