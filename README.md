@@ -220,7 +220,7 @@ A NASA POWER é uma fonte meteorológica externa. Ela não substitui as leituras
 
 ## Autenticação e autorização
 
-A autenticação usa JWT e o login já está pronto (veja [Endpoints prontos: Autenticação e usuários](#endpoints-prontos-autenticação-e-usuários)). Hoje só `GET /api/auth/me`, `POST /api/auth/logout` e `POST /api/usuarios` exigem token; `/api/propriedades`, `/api/culturas`, `/api/sensores` e `/api/precos` continuam abertas até a próxima tarefa.
+A autenticação usa JWT e o login já está pronto (veja [Endpoints prontos: Autenticação e usuários](#endpoints-prontos-autenticação-e-usuários)). Exigem token: `GET /api/auth/me`, `POST /api/auth/logout`, `POST /api/usuarios`, `/api/propriedades`, `/api/sensores` e `/api/lotes`. Cada usuário vê só o que é dele (veja [Quem vê o quê](#quem-vê-o-quê-propriedades-sensores-e-lotes)). `/api/culturas` e `/api/precos` continuam abertas por enquanto.
 
 Fluxo planejado:
 
@@ -302,7 +302,7 @@ Os comandos abaixo são para o **cmd** do Windows, que é o terminal padrão do 
 
 5. Confira no navegador:
    - `http://localhost:3000/api/health` deve responder `{ "status": "ok" }`;
-   - `http://localhost:3000/api/propriedades` deve responder uma lista em JSON com as propriedades ativas do banco (por exemplo, as fazendas de exemplo do seed), cada uma com `totalLotes` e `totalSensores`.
+   - `http://localhost:3000/api/propriedades` exige login: no navegador, sem token, responde `{ "erro": "Não autenticado." }` (401). Isso é o esperado. Para ver a lista, faça login em `POST /api/auth/login` e envie o token no header `Authorization: Bearer <token>`. Com o admin do seed, a lista traz todas as propriedades ativas, cada uma com `totalLotes` e `totalSensores`.
 
 ### Opção 2: banco próprio e vazio
 
@@ -370,14 +370,16 @@ O Prisma está fixado na versão 6.19.3. Não rode `npx prisma init` nem crie `p
 
 ### Endpoints prontos: Propriedades
 
+Exigem token. Cada usuário vê só as próprias propriedades (veja [Quem vê o quê](#quem-vê-o-quê-propriedades-sensores-e-lotes)).
+
 | Verbo | Rota | O que faz | Sucesso |
 |---|---|---|---|
-| GET | `/api/health` | Confere se o servidor está no ar | 200 |
-| GET | `/api/propriedades` | Lista as propriedades ativas por nome, com `totalLotes` e `totalSensores` | 200 |
-| GET | `/api/propriedades/:id` | Detalhe de uma propriedade ativa, com as contagens | 200 |
-| POST | `/api/propriedades` | Cadastra uma propriedade | 201 |
-| PUT | `/api/propriedades/:id` | Edita os campos do cadastro | 200 |
-| DELETE | `/api/propriedades/:id` | Exclusão lógica (status passa a `INATIVO`) | 204 |
+| GET | `/api/health` | Confere se o servidor está no ar (público) | 200 |
+| GET | `/api/propriedades` | Lista as propriedades ativas do usuário por nome, com `totalLotes` e `totalSensores` | 200 |
+| GET | `/api/propriedades/:id` | Detalhe de uma propriedade ativa do usuário, com as contagens | 200 |
+| POST | `/api/propriedades` | Cadastra uma propriedade; o dono é o usuário logado (ADMIN ou PRODUTOR) | 201 |
+| PUT | `/api/propriedades/:id` | Edita os campos do cadastro (ADMIN ou PRODUTOR, só da própria) | 200 |
+| DELETE | `/api/propriedades/:id` | Exclusão lógica (status passa a `INATIVO`) (ADMIN ou PRODUTOR, só da própria) | 204 |
 
 Corpo do POST/PUT (todos obrigatórios; outros campos são ignorados):
 
@@ -392,7 +394,7 @@ Corpo do POST/PUT (todos obrigatórios; outros campos são ignorados):
 }
 ```
 
-Erros respondem em JSON no formato `{ "erro": "mensagem" }`. Validação inválida (400) inclui também `campos`, com uma mensagem por campo. Id não numérico: 400. Propriedade inexistente ou inativa: 404.
+Erros respondem em JSON no formato `{ "erro": "mensagem" }`. Validação inválida (400) inclui também `campos`, com uma mensagem por campo. Id não numérico: 400. Propriedade inexistente, inativa ou de outra pessoa: 404. Sem token: 401. `TECNICO` ao criar, editar ou apagar: 403.
 
 ### Endpoints prontos: Culturas
 
@@ -421,15 +423,17 @@ Corpo do POST/PUT (`variedade` e `descricao` são opcionais; mínimo não pode s
 
 ### Endpoints prontos: Sensores
 
+Exigem token. Cada usuário vê só os sensores das próprias propriedades (veja [Quem vê o quê](#quem-vê-o-quê-propriedades-sensores-e-lotes)).
+
 | Verbo | Rota | O que faz | Sucesso |
 |---|---|---|---|
-| GET | `/api/sensores` | Lista os sensores ativos por código, cada um com o lote (`id` e `identificacao`) | 200 |
-| GET | `/api/sensores/:id` | Detalhe de um sensor ativo, com o lote | 200 |
-| POST | `/api/sensores` | Cadastra um sensor. Código repetido: 409 | 201 |
-| PUT | `/api/sensores/:id` | Edita os campos do cadastro. Código repetido: 409 | 200 |
-| DELETE | `/api/sensores/:id` | Exclusão lógica (status passa a `INATIVO`) | 204 |
+| GET | `/api/sensores` | Lista os sensores ativos do usuário por código, cada um com o lote (`id` e `identificacao`) | 200 |
+| GET | `/api/sensores/:id` | Detalhe de um sensor ativo do usuário, com o lote | 200 |
+| POST | `/api/sensores` | Cadastra um sensor (ADMIN ou PRODUTOR). Código repetido: 409 | 201 |
+| PUT | `/api/sensores/:id` | Edita os campos do cadastro (ADMIN ou PRODUTOR, só dos próprios). Código repetido: 409 | 200 |
+| DELETE | `/api/sensores/:id` | Exclusão lógica (status passa a `INATIVO`) (ADMIN ou PRODUTOR, só dos próprios) | 204 |
 
-Corpo do POST/PUT (`localizacao` é opcional; `dataInstalacao` em `AAAA-MM-DD`, data real e não futura; `loteId` precisa ser número e de um lote de propriedade ativa; outros campos são ignorados):
+Corpo do POST/PUT (`localizacao` é opcional; `dataInstalacao` em `AAAA-MM-DD`, data real e não futura; `loteId` precisa ser número e de um lote visível ao usuário; outros campos são ignorados):
 
 ```json
 {
@@ -442,6 +446,55 @@ Corpo do POST/PUT (`localizacao` é opcional; `dataInstalacao` em `AAAA-MM-DD`, 
 ```
 
 Nas respostas, `dataInstalacao` também vem em `AAAA-MM-DD`.
+
+Erros do cadastro e da edição: `loteId` inexistente ou de outra pessoa: 404 "Lote não encontrado." (a mesma resposta nos dois casos); lote de propriedade excluída (`INATIVO`): 400. Sensor de outra pessoa: 404.
+
+### Endpoints prontos: Lotes (somente leitura)
+
+| Verbo | Rota | O que faz | Sucesso |
+|---|---|---|---|
+| GET | `/api/lotes?propriedadeId=` | Lista os lotes visíveis ao usuário. O filtro `propriedadeId` é opcional e precisa ser um inteiro positivo (senão, 400 com `campos`). Com `propriedadeId` de outra pessoa, a lista vem vazia | 200 |
+| GET | `/api/lotes/:id` | Detalhe de um lote. Lote de outra pessoa: 404 | 200 |
+
+Exemplo de lote na resposta:
+
+```json
+{
+  "id": 1,
+  "identificacao": "Lote 1",
+  "area": 30,
+  "dataPlantacao": "2021-03-15",
+  "colheitaEstimada": "2026-11-20",
+  "situacao": "EM_PRODUCAO",
+  "propriedadeId": 1,
+  "culturaId": 2,
+  "cultura": { "id": 2, "nome": "Manga", "variedade": "Tommy Atkins" },
+  "totalSensores": 2
+}
+```
+
+`area` vem como número, as datas em `AAAA-MM-DD` (`colheitaEstimada` pode ser `null`) e `totalSensores` conta só os sensores ativos. Lote de propriedade excluída (`INATIVO`) não aparece na lista e responde 404 por id.
+
+Ainda não existe criar, editar nem apagar lote (POST, PUT e DELETE).
+
+### Quem vê o quê (propriedades, sensores e lotes)
+
+`/api/propriedades`, `/api/sensores` e `/api/lotes` exigem token (`Authorization: Bearer <token>`) e mostram só o que pertence ao usuário logado:
+
+| Perfil | O que vê e o que pode fazer |
+|---|---|
+| `ADMIN` | Vê e mexe em tudo. |
+| `PRODUTOR` | Vê e mexe só no que é dele: as propriedades em que ele é o dono, e os lotes e sensores dessas propriedades. Um PRODUTOR novo, sem propriedades, recebe lista vazia. |
+| `TECNICO` | Não vê nada por enquanto (lista vazia; 404 por id; 403 ao criar, editar ou apagar), porque o banco ainda não liga técnico a propriedade. |
+| Outro perfil | Tratado como `TECNICO`: nega por padrão. |
+
+Regras:
+
+- O dono de uma propriedade nova é sempre o usuário logado (para ADMIN, ele mesmo). `usuarioId` nunca vem do corpo da requisição.
+- Acesso a um recurso de outra pessoa responde **404**, e não 403, para não revelar que o id existe.
+- Sem token: 401.
+- A regra de visibilidade fica num lugar só: `src/services/escopoDono.js`.
+- As propriedades que já existiam no banco pertencem a usuários ADMIN. Um PRODUTOR novo não as vê até cadastrar as dele.
 
 ### Endpoints prontos: Autenticação e usuários
 
@@ -492,7 +545,7 @@ Regras: `nome` com 1 a 150 caracteres; `email` em formato válido, até 254 cara
 | 409 `"E-mail já cadastrado."` | `POST /api/usuarios` com e-mail que já existe (sem diferenciar maiúsculas). |
 | 429 | Muitas tentativas de login com falha. |
 
-> **As demais rotas continuam abertas:** `/api/propriedades`, `/api/culturas`, `/api/sensores` e `/api/precos` ainda não exigem login. A proteção delas entra numa próxima tarefa. `/api/auth/esqueci-senha` e `/api/auth/redefinir-senha` ainda não existem (respondem 404).
+> **`/api/culturas` e `/api/precos` continuam abertas:** ainda não exigem login (a tela de Culturas do front chama sem token). A proteção delas entra numa próxima tarefa. `/api/auth/esqueci-senha` e `/api/auth/redefinir-senha` ainda não existem (respondem 404).
 
 ## Regras do banco
 
@@ -526,7 +579,7 @@ JWT_EXPIRES_IN="2h"
 | `DATABASE_URL` | Endereço de conexão com o PostgreSQL, lido pelo Prisma (`schema.prisma`). | `postgresql://USUARIO:SENHA@HOST.render.com/NOME_DO_BANCO?sslmode=require` |
 | `PORT` | Porta em que o servidor sobe. Se faltar, usa 3000. | `3000` |
 | `CORS_ORIGIN` | Única origem (endereço do frontend) que pode chamar a API pelo navegador. Se faltar, nenhuma origem externa é liberada. | `http://localhost:5173` |
-| `SEED_ADMIN_EMAIL` | E-mail do usuário ADMIN criado pelo seed. Também é usado pela API como dono das propriedades cadastradas, até as rotas de propriedades passarem a exigir login. | `admin@valesafra.local` |
+| `SEED_ADMIN_EMAIL` | E-mail do usuário ADMIN criado pelo seed. Só o seed usa: a API não depende mais dele (o dono de uma propriedade é o usuário logado). | `admin@valesafra.local` |
 | `SEED_ADMIN_SENHA` | Senha do ADMIN criado pelo seed (salva no banco como hash bcrypt). | `troque-esta-senha` |
 | `JWT_SECRET` | **Obrigatória.** Chave que assina os tokens de login. Mínimo de 32 caracteres; sem ela, o servidor não sobe. | gerada pelo comando abaixo |
 | `JWT_EXPIRES_IN` | Opcional. Validade do token, com unidade (`30m`, `2h`, `1d`). Se faltar, usa `2h`. | `2h` |
@@ -578,5 +631,5 @@ Regras:
 
 MVP em desenvolvimento. A 1ª entrega é em 13/10/2026.
 
-- Pronto: Propriedades, Culturas e Sensores (APIs em `/api/propriedades`, `/api/culturas` e `/api/sensores`), login (`/api/auth/login`, `/api/auth/me`, `/api/auth/logout`) e criação de usuários por ADMIN (`POST /api/usuarios`).
-- Próximas tarefas: exigir login nas rotas existentes, Lote, Leituras (ThingSpeak) e recuperação de senha.
+- Pronto: Propriedades, Culturas, Sensores e Lotes (somente leitura) (APIs em `/api/propriedades`, `/api/culturas`, `/api/sensores` e `/api/lotes`), login (`/api/auth/login`, `/api/auth/me`, `/api/auth/logout`), criação de usuários por ADMIN (`POST /api/usuarios`) e visibilidade por dono em propriedades, sensores e lotes.
+- Próximas tarefas: exigir login em Culturas e Preços, criar, editar e apagar lote, ligar técnico a propriedades, Leituras (ThingSpeak) e recuperação de senha.

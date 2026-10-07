@@ -1,6 +1,7 @@
 const { Prisma } = require("@prisma/client");
 const prisma = require("../config/prisma");
 const { ErroHttp } = require("../middlewares/erros");
+const { filtroLote, filtroSensor } = require("./escopoDono");
 
 const ERRO_NAO_ENCONTRADO = "Sensor não encontrado.";
 
@@ -21,13 +22,18 @@ function formatar(sensor) {
   return { ...sensor, dataInstalacao: sensor.dataInstalacao.toISOString().slice(0, 10) };
 }
 
-// Lote de propriedade INATIVA conta como inexistente: a propriedade foi excluida.
-async function garantirLote(loteId) {
+// O lote precisa ser visivel ao usuario (dono da propriedade, ou ADMIN).
+// Inexistente ou de outra pessoa: 404, a mesma resposta nos dois casos, para nao revelar
+// quais ids de lote existem. Lote visivel de propriedade INATIVA: 400 (a propriedade foi excluida).
+async function garantirLote(loteId, usuario) {
   const lote = await prisma.lote.findFirst({
-    where: { id: loteId, propriedade: { status: "ATIVO" } },
-    select: { id: true },
+    where: { id: loteId, AND: [filtroLote(usuario)] },
+    select: { propriedade: { select: { status: true } } },
   });
   if (!lote) {
+    throw new ErroHttp(404, "Lote não encontrado.", { loteId: "lote não encontrado." });
+  }
+  if (lote.propriedade.status !== "ATIVO") {
     throw new ErroHttp(400, "Lote não encontrado.", { loteId: "lote não encontrado." });
   }
 }
@@ -43,27 +49,28 @@ function traduzirCodigoRepetido(erro) {
   return erro;
 }
 
-async function listar() {
+async function listar(usuario) {
   const sensores = await prisma.sensor.findMany({
-    where: { status: "ATIVO" },
+    where: { status: "ATIVO", AND: [filtroSensor(usuario)] },
     orderBy: { codigo: "asc" },
     select: SELECAO,
   });
   return sensores.map(formatar);
 }
 
-async function buscarPorId(id) {
-  // Sensor INATIVO conta como excluido: responde 404 como se nao existisse.
+async function buscarPorId(id, usuario) {
+  // Sensor INATIVO ou de outro dono: 404, como se nao existisse.
   const sensor = await prisma.sensor.findFirst({
-    where: { id, status: "ATIVO" },
+    where: { id, status: "ATIVO", AND: [filtroSensor(usuario)] },
     select: SELECAO,
   });
   if (!sensor) throw new ErroHttp(404, ERRO_NAO_ENCONTRADO);
   return formatar(sensor);
 }
 
-async function criar(dados) {
-  await garantirLote(dados.loteId);
+async function criar(dados, usuario) {
+  // So aceita loteId de lote visivel: ninguem cria sensor na propriedade de outra pessoa.
+  await garantirLote(dados.loteId, usuario);
   try {
     return formatar(await prisma.sensor.create({ data: dados, select: SELECAO }));
   } catch (erro) {
@@ -71,23 +78,33 @@ async function criar(dados) {
   }
 }
 
-async function atualizar(id, dados) {
-  // Primeiro o 404: nao adianta validar o lote de um sensor que nao existe.
-  const existe = await prisma.sensor.findFirst({ where: { id, status: "ATIVO" }, select: { id: true } });
+async function atualizar(id, dados, usuario) {
+  const filtro = { id, status: "ATIVO", AND: [filtroSensor(usuario)] };
+
+  // Primeiro o 404: nao adianta validar o lote de um sensor que nao existe (ou e de outro dono).
+  const existe = await prisma.sensor.findFirst({ where: filtro, select: { id: true } });
   if (!existe) throw new ErroHttp(404, ERRO_NAO_ENCONTRADO);
 
-  await garantirLote(dados.loteId);
+  // O lote de destino tambem precisa ser visivel: ninguem move sensor para o lote de outra pessoa.
+  await garantirLote(dados.loteId, usuario);
+
+  let count;
   try {
-    return formatar(await prisma.sensor.update({ where: { id }, data: dados, select: SELECAO }));
+    // updateMany com o filtro de dono no where: a regra vale na propria gravacao.
+    ({ count } = await prisma.sensor.updateMany({ where: filtro, data: dados }));
   } catch (erro) {
     throw traduzirCodigoRepetido(erro);
   }
+  if (count === 0) throw new ErroHttp(404, ERRO_NAO_ENCONTRADO);
+
+  return buscarPorId(id, usuario);
 }
 
-async function remover(id) {
+async function remover(id, usuario) {
   // Exclusao logica: as leituras futuras dependem do sensor, entao a linha fica no banco.
+  // O filtro de dono no where faz o sensor de outra pessoa dar 404.
   const { count } = await prisma.sensor.updateMany({
-    where: { id, status: "ATIVO" },
+    where: { id, status: "ATIVO", AND: [filtroSensor(usuario)] },
     data: { status: "INATIVO" },
   });
   if (count === 0) throw new ErroHttp(404, ERRO_NAO_ENCONTRADO);
