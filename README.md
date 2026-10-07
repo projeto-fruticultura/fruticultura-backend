@@ -114,7 +114,7 @@ prisma/
 
 ## Endpoints planejados
 
-Os endpoints abaixo são uma proposta inicial e poderão ser ajustados. Já estão prontos: Propriedades, Culturas, Sensores, `POST /api/auth/login`, `GET /api/auth/me`, `POST /api/auth/logout` e `POST /api/usuarios` (veja [Endpoints prontos: Autenticação e usuários](#endpoints-prontos-autenticação-e-usuários)).
+Os endpoints abaixo são uma proposta inicial e poderão ser ajustados. Já estão prontos: Propriedades, Culturas, Sensores, Lotes, `GET /api/leituras`, `POST /api/auth/login`, `GET /api/auth/me`, `POST /api/auth/logout` e `POST /api/usuarios` (veja [Endpoints prontos: Autenticação e usuários](#endpoints-prontos-autenticação-e-usuários)).
 
 ### Autenticação
 
@@ -177,9 +177,7 @@ DELETE /api/sensores/:id
 ### Leituras
 
 ```text
-GET  /api/leituras
-POST /api/leituras
-GET  /api/leituras/:id
+GET /api/leituras
 ```
 
 ### Dados da NASA
@@ -220,7 +218,7 @@ A NASA POWER é uma fonte meteorológica externa. Ela não substitui as leituras
 
 ## Autenticação e autorização
 
-A autenticação usa JWT e o login já está pronto (veja [Endpoints prontos: Autenticação e usuários](#endpoints-prontos-autenticação-e-usuários)). Exigem token: `GET /api/auth/me`, `POST /api/auth/logout`, `POST /api/usuarios`, `/api/propriedades`, `/api/sensores` e `/api/lotes`. Cada usuário vê só o que é dele (veja [Quem vê o quê](#quem-vê-o-quê-propriedades-sensores-e-lotes)). `/api/culturas` e `/api/precos` continuam abertas por enquanto.
+A autenticação usa JWT e o login já está pronto (veja [Endpoints prontos: Autenticação e usuários](#endpoints-prontos-autenticação-e-usuários)). Exigem token: `GET /api/auth/me`, `POST /api/auth/logout`, `POST /api/usuarios`, `/api/propriedades`, `/api/sensores`, `/api/lotes` e `/api/leituras`. Cada usuário vê só o que é dele (veja [Quem vê o quê](#quem-vê-o-quê-propriedades-sensores-e-lotes)). `/api/culturas` e `/api/precos` continuam abertas por enquanto.
 
 Fluxo planejado:
 
@@ -259,10 +257,11 @@ Os demais integrantes deverão ajudar em endpoints, revisões, integrações, co
 > **Não rode `npm run db:migrar`, `npm run db:seed` nem `npx prisma migrate reset` no banco compartilhado do grupo.**
 > Quando o banco tem tabelas ou migrations que não batem com a sua cópia do projeto, o Prisma pode propor um *reset*, que apaga **todos** os dados do banco, e isso não tem volta. No banco compartilhado, só se testa a conexão e roda o servidor.
 
-Existem duas formas de rodar o projeto:
+Existem três formas de rodar o projeto:
 
 - **Opção 1: banco compartilhado do grupo**, para quem vai desenvolver ou testar endpoints sem mexer no `schema.prisma`;
-- **Opção 2: banco próprio e vazio**, para quem vai mexer no `schema.prisma` (criar ou alterar tabelas).
+- **Opção 2: banco próprio e vazio**, para quem vai mexer no `schema.prisma` (criar ou alterar tabelas);
+- **Opção 3: ambiente de teste local**, para testar migration, seed e endpoints num banco na sua máquina, sem encostar no compartilhado.
 
 ### Pré-requisitos
 
@@ -292,7 +291,7 @@ Os comandos abaixo são para o **cmd** do Windows, que é o terminal padrão do 
    npm run db:testar
    ```
 
-   No banco compartilhado, o esperado é **aparecerem models** (`Usuario`, `Propriedade`, `Cultura`, `Lote`, `Sensor`): o banco já tem as tabelas. **Não rode `db:migrar` nem `db:seed`.** Se aparecer outro resultado, veja [Resultados do `db:testar`](#resultados-do-dbtestar) e [Erros comuns](#erros-comuns).
+   No banco compartilhado, o esperado é **aparecerem models** (`Usuario`, `Propriedade`, `Cultura`, `Lote`, `Sensor`, `Leitura`): o banco já tem as tabelas. **Não rode `db:migrar` nem `db:seed`.** Se aparecer outro resultado, veja [Resultados do `db:testar`](#resultados-do-dbtestar) e [Erros comuns](#erros-comuns).
 
 4. Suba o servidor:
 
@@ -310,7 +309,7 @@ Use esta opção quando for mexer no `schema.prisma`. Avise o grupo antes (veja 
 
 1. Clone o repositório e instale as dependências (igual ao passo 1 da Opção 1).
 
-2. Crie na raiz do projeto um arquivo chamado `.env` com as variáveis do modelo em [Variáveis de ambiente](#variáveis-de-ambiente) (hoje o repositório não tem `.env.example`) e preencha:
+2. Crie na raiz do projeto o seu `.env` a partir do modelo `.env.example` (no cmd: `copy .env.example .env`; as variáveis estão em [Variáveis de ambiente](#variáveis-de-ambiente)) e preencha:
    - `DATABASE_URL`: a URL do **seu** banco PostgreSQL, que precisa estar vazio (no Render, é a **External Database URL**);
    - `SEED_ADMIN_SENHA`: troque por uma senha sua;
    - `JWT_SECRET`: gere o seu com o comando indicado lá.
@@ -342,6 +341,24 @@ Use esta opção quando for mexer no `schema.prisma`. Avise o grupo antes (veja 
    ```cmd
    npm run dev
    ```
+
+### Opção 3: ambiente de teste local
+
+Use esta opção para testar migration, seed e endpoints num banco **local**, sem encostar no banco compartilhado. Você precisa de um PostgreSQL instalado na sua máquina.
+
+1. Crie um banco vazio nele (por exemplo, `valesafra_teste`).
+
+2. Crie na raiz do projeto o arquivo `.env.teste`: copie o modelo (`copy .env.example .env.teste`) e troque a `DATABASE_URL` pela URL do banco **local** (por exemplo, `postgresql://USUARIO:SENHA@localhost:5432/valesafra_teste`). As outras variáveis são as mesmas do `.env` (veja [Variáveis de ambiente](#variáveis-de-ambiente)); deixe `LEITURAS_AGENDADOR_ATIVO="false"`. O `.env.teste` está no `.gitignore` e nunca vai para o Git.
+
+3. Use os scripts abaixo, que leem o `.env.teste` no lugar do `.env`:
+
+   | Script | O que faz |
+   |---|---|
+   | `npm run db:teste:migrar` | Aplica as migrations (`prisma migrate deploy`) no banco do `.env.teste`. |
+   | `npm run db:teste:seed` | Roda o seed no banco do `.env.teste`. |
+   | `npm run dev:teste` | Sobe o servidor usando o `.env.teste`. |
+
+O `npm run dev` continua usando o `.env`. Por isso, para testar no banco local, suba o servidor com `npm run dev:teste`. Se quiser rodar o `dev` e o `dev:teste` ao mesmo tempo, troque a `PORT` do `.env.teste` para `3001`, para os dois não disputarem a porta 3000. Migration e seed no banco compartilhado são evitados: lá, só `npx prisma migrate deploy`, depois de a mudança ser revisada e com o grupo avisado (veja [Regras do banco](#regras-do-banco)).
 
 ### Resultados do `db:testar`
 
@@ -602,31 +619,27 @@ Regras: `nome` com 1 a 150 caracteres; `email` em formato válido, até 254 cara
   ```
 
   O `migrate deploy` só aplica as migrations novas. Ele nunca propõe reset.
+- Depois que um pull request com migration for mesclado, alguém precisa aplicá-la no banco compartilhado com o `migrate deploy` acima. Enquanto isso não acontece, o código novo pode falhar ao usar tabelas ou colunas que o banco ainda não tem.
 - **Nunca** rode `npx prisma migrate reset` no banco compartilhado: ele apaga todos os dados.
 
 ## Variáveis de ambiente
 
-O `.env` fica na raiz do projeto e **nunca vai para o Git** (está no `.gitignore`). Hoje o repositório não tem `.env.example`: crie o `.env` com as variáveis abaixo. Nunca publique credenciais reais: os exemplos são fictícios.
-
-```env
-DATABASE_URL="postgresql://USUARIO:SENHA@HOST.render.com/NOME_DO_BANCO?sslmode=require"
-PORT=3000
-CORS_ORIGIN="http://localhost:5173"
-SEED_ADMIN_EMAIL="admin@valesafra.local"
-SEED_ADMIN_SENHA="troque-esta-senha"
-JWT_SECRET="cole-aqui-o-valor-gerado-pelo-comando-abaixo"
-JWT_EXPIRES_IN="2h"
-```
+O `.env` fica na raiz do projeto e **nunca vai para o Git** (está no `.gitignore`). O repositório tem o modelo `.env.example`, só com nomes e exemplos falsos: copie e preencha (no cmd: `copy .env.example .env`). Nunca coloque valor real no `.env.example` nem em qualquer arquivo que vai para o Git: os exemplos abaixo são fictícios.
 
 | Variável | Para que serve | Exemplo fictício |
 |---|---|---|
-| `DATABASE_URL` | Endereço de conexão com o PostgreSQL, lido pelo Prisma (`schema.prisma`). | `postgresql://USUARIO:SENHA@HOST.render.com/NOME_DO_BANCO?sslmode=require` |
-| `PORT` | Porta em que o servidor sobe. Se faltar, usa 3000. | `3000` |
-| `CORS_ORIGIN` | Única origem (endereço do frontend) que pode chamar a API pelo navegador. Se faltar, nenhuma origem externa é liberada. | `http://localhost:5173` |
-| `SEED_ADMIN_EMAIL` | E-mail do usuário ADMIN criado pelo seed. Só o seed usa: a API não depende mais dele (o dono de uma propriedade é o usuário logado). | `admin@valesafra.local` |
-| `SEED_ADMIN_SENHA` | Senha do ADMIN criado pelo seed (salva no banco como hash bcrypt). | `troque-esta-senha` |
+| `DATABASE_URL` | **Obrigatória.** Endereço de conexão com o PostgreSQL, lido pelo Prisma (`schema.prisma`). | `postgresql://USUARIO:SENHA@HOST/NOME_DO_BANCO?sslmode=require` |
+| `PORT` | Opcional. Porta em que o servidor sobe. Se faltar, usa 3000. | `3000` |
+| `CORS_ORIGIN` | Opcional. Única origem (endereço do frontend) que pode chamar a API pelo navegador. Se faltar, nenhuma origem externa é liberada. | `http://localhost:5173` |
 | `JWT_SECRET` | **Obrigatória.** Chave que assina os tokens de login. Mínimo de 32 caracteres; sem ela, o servidor não sobe. | gerada pelo comando abaixo |
 | `JWT_EXPIRES_IN` | Opcional. Validade do token, com unidade (`30m`, `2h`, `1d`). Se faltar, usa `2h`. | `2h` |
+| `SEED_ADMIN_EMAIL` | Obrigatória só para rodar o seed. E-mail do usuário ADMIN criado pelo seed. Só o seed usa: a API não depende mais dele (o dono de uma propriedade é o usuário logado). | `admin@valesafra.local` |
+| `SEED_ADMIN_SENHA` | Obrigatória só para rodar o seed. Senha do ADMIN criado pelo seed (salva no banco como hash bcrypt). | `troque-esta-senha` |
+| `THINGSPEAK_CHANNEL_ID` | Obrigatória só se o agendador de leituras estiver ligado. Número do canal do ThingSpeak de onde vêm a temperatura e a umidade. | `1234567` |
+| `THINGSPEAK_READ_KEY` | Obrigatória só se o agendador estiver ligado. Chave de leitura do canal. É segredo. | `troque-pela-chave-de-leitura` |
+| `THINGSPEAK_SENSOR_CODIGO` | Obrigatória só se o agendador estiver ligado. Código do sensor, cadastrado e ativo no banco, que recebe as leituras. | `ESP32-EXEMPLO-01` |
+| `LEITURAS_AGENDADOR_ATIVO` | Opcional. O agendador que busca as leituras no ThingSpeak vem **desligado** por padrão; só liga com exatamente `true`. | `false` |
+| `LEITURAS_INTERVALO_MIN` | Opcional. De quanto em quanto tempo o agendador busca, em minutos (inteiro de 1 a 1440). Se faltar, usa 5. | `5` |
 
 Como gerar o seu `JWT_SECRET` (no cmd, na pasta do projeto):
 
@@ -639,11 +652,8 @@ Copie o valor gerado para a linha `JWT_SECRET="..."` do seu `.env`.
 > [!IMPORTANT]
 > **Cada dev gera o próprio `JWT_SECRET`.** Nunca versione, nunca mande no grupo e nunca cole em chat de IA: quem tem o segredo consegue criar tokens válidos de qualquer usuário, inclusive ADMIN. Trocar o segredo invalida todos os tokens já emitidos (todos precisam entrar de novo).
 
-**Ainda não usadas** (entram nas próximas tarefas):
-
-| Variável | Para que vai servir | Exemplo fictício |
-|---|---|---|
-| `NASA_POWER_BASE_URL` | Endereço base da NASA POWER API. | `https://power.larc.nasa.gov/api` |
+> [!IMPORTANT]
+> **A `THINGSPEAK_READ_KEY` nunca vai para o Git, para log ou para chat.** E, num banco compartilhado, só **uma** pessoa deve ligar o agendador (`LEITURAS_AGENDADOR_ATIVO="true"`): se várias ligarem, cada máquina busca e grava as mesmas leituras ao mesmo tempo.
 
 ## Testes
 
@@ -676,4 +686,4 @@ Regras:
 MVP em desenvolvimento. A 1ª entrega é em 13/10/2026.
 
 - Pronto: Propriedades, Culturas, Sensores e Lotes (APIs em `/api/propriedades`, `/api/culturas`, `/api/sensores` e `/api/lotes`), login (`/api/auth/login`, `/api/auth/me`, `/api/auth/logout`), criação de usuários por ADMIN (`POST /api/usuarios`) e visibilidade por dono em propriedades, sensores e lotes.
-- Próximas tarefas: exigir login em Culturas e Preços, ligar técnico a propriedades, Leituras (ThingSpeak) e recuperação de senha.
+- Próximas tarefas: exigir login em Culturas e Preços, ligar técnico a propriedades, colocar as Leituras para rodar no Render (a busca por agendamento no ThingSpeak e o `GET /api/leituras` já existem; falta criar o sensor e as variáveis no Render) e recuperação de senha.
