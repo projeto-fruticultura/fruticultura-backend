@@ -87,6 +87,22 @@ model Sensor {
   status         Status   @default(ATIVO)
   loteId         Int
   lote           Lote     @relation(fields: [loteId], references: [id])
+  leituras       Leitura[]
 
   @@index([loteId])
+}
+
+// Temperatura e umidade lidas por um sensor (vindas do ThingSpeak por agendamento, em etapa futura).
+model Leitura {
+  id              Int      @id @default(autoincrement())
+  sensorId        Int
+  sensor          Sensor   @relation(fields: [sensorId], references: [id], onDelete: Restrict)
+  temperatura     Float
+  umidade         Float
+  dataHoraLeitura DateTime // quando o sensor mediu (vem do ThingSpeak)
+  criadoEm        DateTime @default(now()) // quando gravamos no nosso banco
+
+  // Impede gravar a mesma leitura duas vezes se o agendamento buscar o mesmo trecho de novo.
+  // Este unique ja cria o indice (sensorId, dataHoraLeitura) que serve as consultas por sensor e periodo.
+  @@unique([sensorId, dataHoraLeitura])
 }
