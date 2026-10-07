@@ -28,10 +28,17 @@ function filtroSensor(usuario) {
   return Object.keys(filtro).length === 0 ? {} : { lote: filtro };
 }
 
+// Filtro de lote SO para as rotas de Lotes: alem do dono, exige o lote ATIVO.
+// Fica separado de filtroLote de proposito: filtroSensor e filtroLeitura usam filtroLote e NAO devem
+// herdar o status, para o historico de sensores e leituras continuar visivel mesmo com o lote inativo.
+function filtroLoteAtivo(usuario) {
+  return { status: "ATIVO", ...filtroLote(usuario) };
+}
+
 // Leitura herda o dono do sensor (leitura -> sensor -> lote -> propriedade).
 function filtroLeitura(usuario) {
   const filtro = filtroSensor(usuario);
   return Object.keys(filtro).length === 0 ? {} : { sensor: filtro };
 }
 
-module.exports = { filtroPropriedade, filtroLote, filtroSensor, filtroLeitura };
+module.exports = { filtroPropriedade, filtroLote, filtroLoteAtivo, filtroSensor, filtroLeitura };

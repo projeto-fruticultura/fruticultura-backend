@@ -22,12 +22,14 @@ function formatar(sensor) {
   return { ...sensor, dataInstalacao: sensor.dataInstalacao.toISOString().slice(0, 10) };
 }
 
-// O lote precisa ser visivel ao usuario (dono da propriedade, ou ADMIN).
-// Inexistente ou de outra pessoa: 404, a mesma resposta nos dois casos, para nao revelar
-// quais ids de lote existem. Lote visivel de propriedade INATIVA: 400 (a propriedade foi excluida).
+// O lote precisa ser visivel ao usuario (dono da propriedade, ou ADMIN) e estar ATIVO.
+// Inexistente, de outra pessoa ou INATIVO: 404, a mesma resposta nos tres casos, para nao revelar
+// quais ids de lote existem. Lote ATIVO de propriedade INATIVA: 400 (a propriedade foi excluida).
+// O status do lote e conferido so aqui, e nao no filtroLote: filtroSensor nao pode herdar esse
+// filtro, senao os sensores e as leituras de um lote inativo sumiriam do historico.
 async function garantirLote(loteId, usuario) {
   const lote = await prisma.lote.findFirst({
-    where: { id: loteId, AND: [filtroLote(usuario)] },
+    where: { id: loteId, status: "ATIVO", AND: [filtroLote(usuario)] },
     select: { propriedade: { select: { status: true } } },
   });
   if (!lote) {

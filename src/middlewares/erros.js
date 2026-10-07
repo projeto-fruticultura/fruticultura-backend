@@ -1,9 +1,11 @@
 // Erro "esperado", com status e mensagem que podem ir para o cliente.
+// "extras" acrescenta campos soltos ao corpo da resposta (ex.: { totalSensores: 3 } no 409 de Lotes).
 class ErroHttp extends Error {
-  constructor(status, mensagem, campos) {
+  constructor(status, mensagem, campos, extras) {
     super(mensagem);
     this.status = status;
     this.campos = campos;
+    this.extras = extras;
   }
 }
 
@@ -18,6 +20,7 @@ function tratarErros(err, req, res, next) {
   if (err instanceof ErroHttp) {
     const corpo = { erro: err.message };
     if (err.campos) corpo.campos = err.campos;
+    if (err.extras) Object.assign(corpo, err.extras);
     return res.status(err.status).json(corpo);
   }
 
