@@ -114,7 +114,7 @@ prisma/
 
 ## Endpoints planejados
 
-Os endpoints abaixo são uma proposta inicial e poderão ser ajustados. Já estão prontos: Propriedades, Culturas, Sensores, Lotes, Logística, `GET /api/leituras`, `POST /api/auth/login`, `GET /api/auth/me`, `POST /api/auth/logout` e `POST /api/usuarios` (veja [Endpoints prontos: Autenticação e usuários](#endpoints-prontos-autenticação-e-usuários)).
+Os endpoints abaixo são uma proposta inicial e poderão ser ajustados. Já estão prontos: Propriedades, Culturas, Sensores, Lotes, Logística, `GET /api/leituras`, `GET /api/alertas`, `POST /api/auth/login`, `GET /api/auth/me`, `POST /api/auth/logout` e `POST /api/usuarios` (veja [Endpoints prontos: Autenticação e usuários](#endpoints-prontos-autenticação-e-usuários)).
 
 ### Autenticação
 
@@ -190,6 +190,12 @@ DELETE /api/logistica/:id
 GET /api/leituras
 ```
 
+### Alertas
+
+```text
+GET /api/alertas
+```
+
 ### Dados da NASA
 
 ```text
@@ -228,7 +234,7 @@ A NASA POWER é uma fonte meteorológica externa. Ela não substitui as leituras
 
 ## Autenticação e autorização
 
-A autenticação usa JWT e o login já está pronto (veja [Endpoints prontos: Autenticação e usuários](#endpoints-prontos-autenticação-e-usuários)). Exigem token: `GET /api/auth/me`, `POST /api/auth/logout`, `POST /api/usuarios`, `/api/propriedades`, `/api/sensores`, `/api/lotes`, `/api/leituras` e `/api/logistica`. Cada usuário vê só o que é dele (veja [Quem vê o quê](#quem-vê-o-quê-propriedades-sensores-e-lotes)). `/api/culturas` e `/api/precos` continuam abertas por enquanto.
+A autenticação usa JWT e o login já está pronto (veja [Endpoints prontos: Autenticação e usuários](#endpoints-prontos-autenticação-e-usuários)). Exigem token: `GET /api/auth/me`, `POST /api/auth/logout`, `POST /api/usuarios`, `/api/propriedades`, `/api/sensores`, `/api/lotes`, `/api/leituras`, `/api/logistica` e `/api/alertas`. Cada usuário vê só o que é dele (veja [Quem vê o quê](#quem-vê-o-quê-propriedades-sensores-e-lotes)). `/api/culturas` e `/api/precos` continuam abertas por enquanto.
 
 Fluxo planejado:
 
@@ -429,7 +435,7 @@ Erros respondem em JSON no formato `{ "erro": "mensagem" }`. Validação inváli
 |---|---|---|---|
 | GET | `/api/culturas` | Lista as culturas por nome | 200 |
 | GET | `/api/culturas/:id` | Detalhe de uma cultura | 200 |
-| GET | `/api/culturas/:id/detalhes?lat=&lon=` | Cultura com clima atual nas coordenadas, alertas de faixa, cotação de mercado e estatísticas do IBGE. `lat` e `lon` são obrigatórios (400 se faltarem ou estiverem fora da faixa) | 200 |
+| GET | `/api/culturas/:id/detalhes?lat=&lon=&uf=` | Cultura com clima atual nas coordenadas, alertas de faixa, cotação de mercado da CONAB e estatísticas do IBGE. `lat` e `lon` são obrigatórios (400 se faltarem ou estiverem fora da faixa). `uf` é opcional (padrão `PE`; inválida: 400). Veja [Detalhes da cultura](#detalhes-da-cultura-get-apiculturasiddetalhes) | 200 |
 | POST | `/api/culturas` | Cadastra uma cultura | 201 |
 | PUT | `/api/culturas/:id` | Edita os campos do cadastro | 200 |
 | DELETE | `/api/culturas/:id` | Apaga a cultura. Se ela tem lotes, não apaga e responde 409 | 204 |
@@ -447,6 +453,83 @@ Corpo do POST/PUT (`variedade` e `descricao` são opcionais; mínimo não pode s
   "umidadeMax": 70
 }
 ```
+
+#### Detalhes da cultura (`GET /api/culturas/:id/detalhes`)
+
+Rota pública, como o resto de Culturas. Parâmetros da query:
+
+- `lat` e `lon` (obrigatórios): coordenadas do local, como números (`lat` de -90 a 90 e `lon` de -180 a 180). Ausentes ou inválidas: 400.
+- `uf` (opcional): sigla do estado da cotação, sem diferença de maiúscula (`ba` vale). Sem ela, usa `PE`. Inválida, vazia ou repetida: 400.
+
+A resposta traz `cultura`, `condicoesAtuais` (clima do Open-Meteo), `alertas` (`temperaturaForaDoRango` e `umidadeForaDoRango`), `cotacaoMercado` e `estatisticasAgricolas` (IBGE), e mais o `avisoMercado`, **só quando não há cotação**. Exemplo com cotação (`...&uf=PE`):
+
+```json
+{
+  "cultura": { "id": 2, "nome": "Manga", "variedade": "Tommy Atkins", "temperaturaMin": 24, "temperaturaMax": 32, "umidadeMin": 40, "umidadeMax": 70 },
+  "condicoesAtuais": { "temperaturaAtual": 34, "umidadeAtual": 30, "velocidadeVento": 12.2 },
+  "alertas": { "temperaturaForaDoRango": true, "umidadeForaDoRango": true },
+  "cotacaoMercado": { "fonte": "CONAB/PROHORT", "precoAtual": { "...": "..." }, "historico": [ { "...": "..." } ] },
+  "estatisticasAgricolas": { "indicador": "Área plantada no Brasil (Hectares)", "anoReferencia": "2025", "valor": "..." }
+}
+```
+
+- **Cotação:** vem da mesma CONAB e do mesmo cache de [Preços de mercado](#endpoints-prontos-preços-de-mercado-conab), com os 5 registros mais recentes da `uf` e sem filtrar por CEASA. O `cotacaoMercado` tem o mesmo formato da resposta de `/api/precos` (inclusive `desatualizado: true` quando é o cache antigo). Nunca há preço inventado.
+- **Que cultura tem cotação:** só a cultura cujo **nome** (sem acento e sem diferença de maiúscula) seja `UVA`, `MANGA`, `BANANA`, `GOIABA` ou `MELAO`. "Melão" vale; "Uva Itália" **não** (cadastre a cultura como "Uva" e ponha a variedade no campo `variedade`).
+- **Sem cotação:** a rota continua respondendo 200 com o resto, `cotacaoMercado: null` e o `avisoMercado`: "Sem cotação da CONAB para esta cultura." (nome fora da lista, e a CONAB nem é consultada) ou "Cotação de mercado indisponível no momento." (a consulta à CONAB falhou).
+- **Outras falhas:** se o Open-Meteo falhar, a rota responde 500. Se o IBGE falhar, `estatisticasAgricolas` traz `{ "erro": "Falha ao obter estatísticas do IBGE." }` e a rota responde 200.
+- O primeiro pedido, com o cache da CONAB ainda frio, leva alguns segundos (a menos que `CONAB_AQUECER_AO_INICIAR=true`).
+
+### Endpoints prontos: Preços de mercado (CONAB)
+
+Não exige token (como Culturas, por enquanto). Traz os preços diários de atacado das CEASAs, lidos do arquivo ProHort da CONAB, só de UVA, MANGA, BANANA, GOIABA e MELAO.
+
+| Verbo | Rota | O que faz | Sucesso |
+|---|---|---|---|
+| GET | `/api/precos?produto=&uf=&ceasa=&limite=` | Lista os preços do filtro, do mais novo para o mais antigo | 200 |
+
+Filtros:
+
+- `produto` (obrigatório): `UVA`, `MANGA`, `BANANA`, `GOIABA` ou `MELAO` (maiúscula e acento não importam: `Melão` vale). Qualquer outro produto dá **400**, e a mensagem lista os aceitos;
+- `uf` (obrigatório): sigla do estado, como `PE`;
+- `ceasa` (opcional): trecho do nome da CEASA, sem diferença de maiúscula ou acento (por exemplo, `recife`);
+- `limite` (opcional): de 1 a 100, padrão 10.
+
+Exemplo de resposta (`GET /api/precos?produto=UVA&uf=PE&limite=1`):
+
+```json
+{
+  "fonte": "CONAB/PROHORT",
+  "origem": "https://portaldeinformacoes.conab.gov.br/downloads/arquivos/ProhortDiario.txt",
+  "consultadoEn": "2026-10-08T13:10:57.394Z",
+  "filtros": { "produto": "UVA", "uf": "PE", "ceasa": null },
+  "precoAtual": {
+    "municipio": "RECIFE-PE",
+    "uf": "PE",
+    "ceasa": "CEASA/PE - RECIFE",
+    "produto": "UVA",
+    "variedade": "ITALIA",
+    "unidade": "KG",
+    "data": "2026-10-07",
+    "preco": 5.56
+  },
+  "historico": [ { "...": "mesmo formato do precoAtual" } ]
+}
+```
+
+Como ler a resposta:
+
+- `data` vem em `AAAA-MM-DD`. `variedade` pode ser `null` (MANGA e GOIABA não têm variedade no arquivo).
+- `precoAtual` é o primeiro item do `historico`: o registro **mais novo entre todas as variedades e CEASAs do filtro**. Como cada variedade e cada CEASA têm preço próprio, ele pode mudar de uma para outra de um dia para o outro. Para um preço estável, use `ceasa=`.
+- Sem nenhum registro para o filtro: `historico` vem `[]` e `precoAtual` vem `null`. Nunca há preço inventado.
+- `consultadoEn` é a hora em que o arquivo da CONAB foi baixado pela última vez, e não a hora do seu pedido.
+
+Como funciona por dentro:
+
+- O arquivo da CONAB tem mais de 170 MB. O backend baixa **uma vez**, em fluxo, guarda em memória só os 5 produtos dos últimos 12 meses e usa esse cache por **24 horas**. O primeiro pedido depois de subir o servidor leva alguns segundos, a menos que `CONAB_AQUECER_AO_INICIAR=true` esteja ligada (veja [Variáveis de ambiente](#variáveis-de-ambiente)); os seguintes saem do cache.
+- Limites do download: 120 segundos e 400 MB. Se o cabeçalho do arquivo mudar, o backend recusa o arquivo em vez de ler colunas erradas.
+- O backend faz **até 3 tentativas** no mesmo download, com pausa de 2 s e depois de 5 s, mas só em falha passageira (conexão cortada ou sem resposta, HTTP 429 ou 5xx). Erro que se repetiria igual (arquivo mudado, HTTP 4xx, estouro dos 120 s) não é repetido, e nenhuma tentativa nova começa depois de 90 s de download.
+- Se a CONAB falhar nas 3 tentativas e **não** houver cache: **503** com `{ "erro": "Dados de mercado indisponíveis no momento. ..." }`. Se falhar, mas houver cache antigo: devolve o cache com `"desatualizado": true`. Depois dessa falha total de um pedido, o backend espera 5 minutos antes de tentar de novo (uma falha só do aquecimento ao ligar o servidor não ativa essa espera: o primeiro pedido tenta de novo).
+- O `POST /api/precos` foi removido (responde 404).
 
 ### Endpoints prontos: Sensores
 
@@ -617,6 +700,54 @@ Exemplo de lote na resposta:
 
 Um lote `INATIVO` fica escondido de todos, **inclusive do ADMIN**: some da lista e responde 404 em `GET`, `PUT` e `DELETE`. Não existe rota para reativar. O histórico é preservado: os sensores e as leituras de um lote inativo continuam consultáveis em `/api/sensores` e `/api/leituras`. Sensores inativos não recebem novas leituras, e cadastrar ou mover um sensor para um lote inativo dá 404.
 
+### Endpoints prontos: Alertas
+
+Exigem token. Mostram só o que pertence ao usuário logado (veja [Quem vê o quê](#quem-vê-o-quê-propriedades-sensores-e-lotes)): ADMIN vê tudo, PRODUTOR só os sensores das próprias propriedades, e TECNICO recebe lista vazia.
+
+| Verbo | Rota | O que faz | Sucesso |
+|---|---|---|---|
+| GET | `/api/alertas?propriedadeId=&loteId=` | Compara a **última leitura** de cada sensor com os limites de temperatura e umidade da cultura do lote | 200 |
+
+Como funciona:
+
+- O alerta é **calculado na hora**, a cada consulta. Nada é gravado: não há tabela de alertas.
+- Só entram sensores `ATIVO`, de lotes `ATIVO` e de propriedades `ATIVA`. Sensor sem nenhuma leitura não gera alerta (e nenhum valor é inventado).
+- **Valor igual ao limite é normal.** Só alerta se a leitura for estritamente menor que o mínimo ou maior que o máximo da cultura (`temperaturaMin`, `temperaturaMax`, `umidadeMin`, `umidadeMax`). Uma leitura pode gerar dois alertas (temperatura e umidade).
+- Os filtros `propriedadeId` e `loteId` são opcionais e precisam ser inteiros positivos (senão, 400 com `campos`). Um id de outra pessoa não dá erro: a lista vem vazia, como em `GET /api/lotes?propriedadeId=`.
+
+Exemplo de resposta:
+
+```json
+{
+  "total": 1,
+  "alertas": [
+    {
+      "tipo": "TEMPERATURA_ALTA",
+      "valor": 34.2,
+      "limite": 32,
+      "dataHoraLeitura": "2026-10-08T14:05:00.000Z",
+      "leituraDesatualizada": false,
+      "sensorId": 23,
+      "sensorCodigo": "ESP32-EXEMPLO-01",
+      "loteId": 1,
+      "loteIdentificacao": "Lote 1",
+      "propriedadeId": 1,
+      "culturaNome": "Manga"
+    }
+  ]
+}
+```
+
+| Campo | O que é |
+|---|---|
+| `tipo` | `TEMPERATURA_ALTA`, `TEMPERATURA_BAIXA`, `UMIDADE_ALTA` ou `UMIDADE_BAIXA` |
+| `valor` e `limite` | O valor lido e o limite da cultura que foi ultrapassado (o máximo nos alertas "ALTA" e o mínimo nos "BAIXA") |
+| `dataHoraLeitura` | Quando o sensor mediu, em ISO 8601 (UTC) |
+| `leituraDesatualizada` | `true` quando a última leitura tem **mais de 60 minutos**. O alerta continua valendo, mas o dado pode estar velho. **Com o agendador de leituras desligado, todo alerta virá com `true`**, porque nenhuma leitura nova chega |
+| `sensorId`, `sensorCodigo`, `loteId`, `loteIdentificacao`, `propriedadeId`, `culturaNome` | Identificam de onde veio o alerta |
+
+Por dentro: a última leitura de cada sensor é buscada com **uma consulta por sensor** (`findFirst`, que vira `LIMIT 1` no SQL). Não se usa o `take: 1` aninhado dentro da consulta de sensores porque, nesta versão do Prisma (6.19.3), ele busca todas as leituras dos sensores e corta na memória.
+
 ### Quem vê o quê (propriedades, sensores e lotes)
 
 `/api/propriedades`, `/api/sensores` e `/api/lotes` exigem token (`Authorization: Bearer <token>`) e mostram só o que pertence ao usuário logado:
@@ -645,7 +776,7 @@ Regras:
 | POST | `/api/auth/logout` | token | Só responde 204: o servidor não guarda sessão. Quem "desloga" é o front, apagando o token, que expira sozinho (padrão: 2h) | 204 |
 | POST | `/api/usuarios` | token de ADMIN | Cria um usuário com perfil `PRODUTOR`, `TECNICO` ou `ADMIN` | 201 |
 
-Não há cadastro público: só um ADMIN logado cria usuários, **inclusive outros ADMIN**. O primeiro ADMIN é o do seed (`SEED_ADMIN_EMAIL`).
+Não existe cadastro público: só um ADMIN logado cria usuários, **inclusive outros ADMIN**. O primeiro ADMIN é o do seed (`SEED_ADMIN_EMAIL`). **Não abra essa rota**: se o `POST /api/usuarios` ficar sem login, qualquer pessoa poderia criar uma conta ADMIN.
 
 Corpo do login (o e-mail aceita maiúsculas e espaços nas pontas; a senha tem no máximo 72 bytes):
 
@@ -720,6 +851,7 @@ O `.env` fica na raiz do projeto e **nunca vai para o Git** (está no `.gitignor
 | `THINGSPEAK_SENSOR_CODIGO` | Obrigatória só se o agendador estiver ligado. Código do sensor, cadastrado e ativo no banco, que recebe as leituras. | `ESP32-EXEMPLO-01` |
 | `LEITURAS_AGENDADOR_ATIVO` | Opcional. O agendador que busca as leituras no ThingSpeak vem **desligado** por padrão; só liga com exatamente `true`. | `false` |
 | `LEITURAS_INTERVALO_MIN` | Opcional. De quanto em quanto tempo o agendador busca, em minutos (inteiro de 1 a 1440). Se faltar, usa 5. | `5` |
+| `CONAB_AQUECER_AO_INICIAR` | Opcional. Vem **desligada** por padrão; só liga com exatamente `true`. Ligada, o servidor baixa o arquivo da CONAB (cerca de 180 MB) ao subir, em segundo plano, e o primeiro pedido a `/api/precos` já sai rápido. Para a demonstração, ligue-a. | `false` |
 
 Como gerar o seu `JWT_SECRET` (no cmd, na pasta do projeto):
 
@@ -765,5 +897,5 @@ Regras:
 
 MVP em desenvolvimento. A 1ª entrega é em 13/10/2026.
 
-- Pronto: Propriedades, Culturas, Sensores, Lotes e Logística (APIs em `/api/propriedades`, `/api/culturas`, `/api/sensores`, `/api/lotes` e `/api/logistica`; a migration da Logística já foi aplicada no banco compartilhado), login (`/api/auth/login`, `/api/auth/me`, `/api/auth/logout`), criação de usuários por ADMIN (`POST /api/usuarios`) e visibilidade por dono em propriedades, sensores e lotes.
+- Pronto: Propriedades, Culturas, Sensores, Lotes e Logística (APIs em `/api/propriedades`, `/api/culturas`, `/api/sensores`, `/api/lotes` e `/api/logistica`; a migration da Logística já foi aplicada no banco compartilhado), alertas de temperatura e umidade pelas leituras do sensor (`GET /api/alertas`), login (`/api/auth/login`, `/api/auth/me`, `/api/auth/logout`), criação de usuários por ADMIN (`POST /api/usuarios`) e visibilidade por dono em propriedades, sensores e lotes.
 - Próximas tarefas: exigir login em Culturas e Preços, ligar técnico a propriedades, colocar as Leituras para rodar no Render (a busca por agendamento no ThingSpeak e o `GET /api/leituras` já existem; falta criar o sensor e as variáveis no Render) e recuperação de senha.
