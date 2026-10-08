@@ -9,6 +9,7 @@ const { PRODUTOS_ACEITOS } = require("../validators/mercadoValidator");
 const ERRO_NAO_ENCONTRADA = "Cultura não encontrada.";
 const AVISO_SEM_COTACAO = "Sem cotação da CONAB para esta cultura.";
 const AVISO_COTACAO_INDISPONIVEL = "Cotação de mercado indisponível no momento.";
+const AVISO_CLIMA_INDISPONIVEL = "Clima atual indisponível no momento.";
 
 function erroPrisma(erro, codigo) {
   return erro instanceof Prisma.PrismaClientKnownRequestError && erro.code === codigo;
@@ -102,16 +103,25 @@ async function obterDetalhesCompletos(culturaId, latitude, longitude, uf = "PE")
 
   if (!cultura) throw new ErroHttp(404, ERRO_NAO_ENCONTRADA);
 
-  // 1. Clima (Open-Meteo)
-  const clima = await openMeteoService.obterClimaAtual(latitude, longitude);
-
-  const alertaTemperatura =
-    clima.temperaturaAtual < Number(cultura.temperaturaMin) ||
-    clima.temperaturaAtual > Number(cultura.temperaturaMax);
-
-  const alertaUmidade =
-    clima.umidadeAtual < Number(cultura.umidadeMin) ||
-    clima.umidadeAtual > Number(cultura.umidadeMax);
+  // 1. Clima (Open-Meteo). Se falhar, o clima e os alertas vem null com um aviso e o resto segue valendo:
+  // sem clima nao da para calcular alerta, e nunca se inventa valor. No log vai so a mensagem curta.
+  let clima = null;
+  let alertas = null;
+  try {
+    clima = await openMeteoService.obterClimaAtual(latitude, longitude);
+    alertas = {
+      temperaturaForaDoRango:
+        clima.temperaturaAtual < Number(cultura.temperaturaMin) ||
+        clima.temperaturaAtual > Number(cultura.temperaturaMax),
+      umidadeForaDoRango:
+        clima.umidadeAtual < Number(cultura.umidadeMin) ||
+        clima.umidadeAtual > Number(cultura.umidadeMax),
+    };
+  } catch (erro) {
+    console.error(`Clima do Open-Meteo indisponível: ${erro.message}`);
+    clima = null;
+    alertas = null;
+  }
 
   // 2. Cotação de mercado (CONAB); se faltar, o resto da resposta segue normal
   const { cotacaoMercado, avisoMercado } = await obterCotacao(cultura.nome, uf);
@@ -122,14 +132,12 @@ async function obterDetalhesCompletos(culturaId, latitude, longitude, uf = "PE")
   return {
     cultura: formatar(cultura),
     condicoesAtuais: clima,
-    alertas: {
-      temperaturaForaDoRango: alertaTemperatura,
-      umidadeForaDoRango: alertaUmidade,
-    },
+    alertas,
     cotacaoMercado,
     estatisticasAgricolas: estatisticas,
-    // So aparece quando nao ha cotacao.
+    // Os avisos so aparecem quando falta a cotacao ou o clima.
     ...(avisoMercado ? { avisoMercado } : {}),
+    ...(clima ? {} : { avisoClima: AVISO_CLIMA_INDISPONIVEL }),
   };
 }
 

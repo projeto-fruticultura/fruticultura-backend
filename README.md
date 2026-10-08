@@ -461,7 +461,7 @@ Rota pública, como o resto de Culturas. Parâmetros da query:
 - `lat` e `lon` (obrigatórios): coordenadas do local, como números (`lat` de -90 a 90 e `lon` de -180 a 180). Ausentes ou inválidas: 400.
 - `uf` (opcional): sigla do estado da cotação, sem diferença de maiúscula (`ba` vale). Sem ela, usa `PE`. Inválida, vazia ou repetida: 400.
 
-A resposta traz `cultura`, `condicoesAtuais` (clima do Open-Meteo), `alertas` (`temperaturaForaDoRango` e `umidadeForaDoRango`), `cotacaoMercado` e `estatisticasAgricolas` (IBGE), e mais o `avisoMercado`, **só quando não há cotação**. Exemplo com cotação (`...&uf=PE`):
+A resposta traz `cultura`, `condicoesAtuais` (clima do Open-Meteo), `alertas` (`temperaturaForaDoRango` e `umidadeForaDoRango`), `cotacaoMercado` e `estatisticasAgricolas` (IBGE), e mais o `avisoMercado`, **só quando não há cotação**, e o `avisoClima`, **só quando falta o clima**. Exemplo com cotação (`...&uf=PE`):
 
 ```json
 {
@@ -476,7 +476,8 @@ A resposta traz `cultura`, `condicoesAtuais` (clima do Open-Meteo), `alertas` (`
 - **Cotação:** vem da mesma CONAB e do mesmo cache de [Preços de mercado](#endpoints-prontos-preços-de-mercado-conab), com os 5 registros mais recentes da `uf` e sem filtrar por CEASA. O `cotacaoMercado` tem o mesmo formato da resposta de `/api/precos` (inclusive `desatualizado: true` quando é o cache antigo). Nunca há preço inventado.
 - **Que cultura tem cotação:** só a cultura cujo **nome** (sem acento e sem diferença de maiúscula) seja `UVA`, `MANGA`, `BANANA`, `GOIABA` ou `MELAO`. "Melão" vale; "Uva Itália" **não** (cadastre a cultura como "Uva" e ponha a variedade no campo `variedade`).
 - **Sem cotação:** a rota continua respondendo 200 com o resto, `cotacaoMercado: null` e o `avisoMercado`: "Sem cotação da CONAB para esta cultura." (nome fora da lista, e a CONAB nem é consultada) ou "Cotação de mercado indisponível no momento." (a consulta à CONAB falhou).
-- **Outras falhas:** se o Open-Meteo falhar, a rota responde 500. Se o IBGE falhar, `estatisticasAgricolas` traz `{ "erro": "Falha ao obter estatísticas do IBGE." }` e a rota responde 200.
+- **Clima:** `condicoesAtuais` vem do bloco `current` do Open-Meteo (valores de agora; temperatura em °C e vento em km/h, como antes). Se o Open-Meteo falhar, demorar mais de 8 s ou responder fora do formato, a rota continua respondendo 200 com `condicoesAtuais: null`, `alertas: null` e o `avisoClima`: "Clima atual indisponível no momento." O resto (`cultura`, cotação e IBGE) segue normal.
+- **Outras falhas:** se o IBGE falhar, `estatisticasAgricolas` traz `{ "erro": "Falha ao obter estatísticas do IBGE." }` e a rota responde 200.
 - O primeiro pedido, com o cache da CONAB ainda frio, leva alguns segundos (a menos que `CONAB_AQUECER_AO_INICIAR=true`).
 
 ### Endpoints prontos: Preços de mercado (CONAB)
