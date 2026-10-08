@@ -484,9 +484,10 @@ Como ler a resposta:
 
 Como funciona por dentro:
 
-- O arquivo da CONAB tem mais de 170 MB. O backend baixa **uma vez**, em fluxo, guarda em memória só os 5 produtos dos últimos 12 meses e usa esse cache por **24 horas**. O primeiro pedido depois de subir o servidor leva alguns segundos; os seguintes saem do cache.
+- O arquivo da CONAB tem mais de 170 MB. O backend baixa **uma vez**, em fluxo, guarda em memória só os 5 produtos dos últimos 12 meses e usa esse cache por **24 horas**. O primeiro pedido depois de subir o servidor leva alguns segundos, a menos que `CONAB_AQUECER_AO_INICIAR=true` esteja ligada (veja [Variáveis de ambiente](#variáveis-de-ambiente)); os seguintes saem do cache.
 - Limites do download: 120 segundos e 400 MB. Se o cabeçalho do arquivo mudar, o backend recusa o arquivo em vez de ler colunas erradas.
-- Se a CONAB falhar e **não** houver cache: **503** com `{ "erro": "Dados de mercado indisponíveis no momento. ..." }`. Se falhar, mas houver cache antigo: devolve o cache com `"desatualizado": true`. Depois de uma falha, o backend espera 5 minutos antes de tentar de novo.
+- O backend faz **até 3 tentativas** no mesmo download, com pausa de 2 s e depois de 5 s, mas só em falha passageira (conexão cortada ou sem resposta, HTTP 429 ou 5xx). Erro que se repetiria igual (arquivo mudado, HTTP 4xx, estouro dos 120 s) não é repetido, e nenhuma tentativa nova começa depois de 90 s de download.
+- Se a CONAB falhar nas 3 tentativas e **não** houver cache: **503** com `{ "erro": "Dados de mercado indisponíveis no momento. ..." }`. Se falhar, mas houver cache antigo: devolve o cache com `"desatualizado": true`. Depois dessa falha total de um pedido, o backend espera 5 minutos antes de tentar de novo (uma falha só do aquecimento ao ligar o servidor não ativa essa espera: o primeiro pedido tenta de novo).
 - O `POST /api/precos` foi removido (responde 404).
 
 ### Endpoints prontos: Sensores
@@ -691,6 +692,7 @@ O `.env` fica na raiz do projeto e **nunca vai para o Git** (está no `.gitignor
 | `THINGSPEAK_SENSOR_CODIGO` | Obrigatória só se o agendador estiver ligado. Código do sensor, cadastrado e ativo no banco, que recebe as leituras. | `ESP32-EXEMPLO-01` |
 | `LEITURAS_AGENDADOR_ATIVO` | Opcional. O agendador que busca as leituras no ThingSpeak vem **desligado** por padrão; só liga com exatamente `true`. | `false` |
 | `LEITURAS_INTERVALO_MIN` | Opcional. De quanto em quanto tempo o agendador busca, em minutos (inteiro de 1 a 1440). Se faltar, usa 5. | `5` |
+| `CONAB_AQUECER_AO_INICIAR` | Opcional. Vem **desligada** por padrão; só liga com exatamente `true`. Ligada, o servidor baixa o arquivo da CONAB (cerca de 180 MB) ao subir, em segundo plano, e o primeiro pedido a `/api/precos` já sai rápido. Para a demonstração, ligue-a. | `false` |
 
 Como gerar o seu `JWT_SECRET` (no cmd, na pasta do projeto):
 
