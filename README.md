@@ -114,7 +114,7 @@ prisma/
 
 ## Endpoints planejados
 
-Os endpoints abaixo são uma proposta inicial e poderão ser ajustados. Já estão prontos: Propriedades, Culturas, Sensores, Lotes, `GET /api/leituras`, `GET /api/alertas`, `POST /api/auth/login`, `GET /api/auth/me`, `POST /api/auth/logout` e `POST /api/usuarios` (veja [Endpoints prontos: Autenticação e usuários](#endpoints-prontos-autenticação-e-usuários)).
+Os endpoints abaixo são uma proposta inicial e poderão ser ajustados. Já estão prontos: Propriedades, Culturas, Sensores, Lotes, Logística, `GET /api/leituras`, `GET /api/alertas`, `POST /api/auth/login`, `GET /api/auth/me`, `POST /api/auth/logout` e `POST /api/usuarios` (veja [Endpoints prontos: Autenticação e usuários](#endpoints-prontos-autenticação-e-usuários)).
 
 ### Autenticação
 
@@ -174,6 +174,16 @@ PUT    /api/sensores/:id
 DELETE /api/sensores/:id
 ```
 
+### Logística
+
+```text
+GET    /api/logistica
+POST   /api/logistica
+GET    /api/logistica/:id
+PUT    /api/logistica/:id
+DELETE /api/logistica/:id
+```
+
 ### Leituras
 
 ```text
@@ -224,7 +234,7 @@ A NASA POWER é uma fonte meteorológica externa. Ela não substitui as leituras
 
 ## Autenticação e autorização
 
-A autenticação usa JWT e o login já está pronto (veja [Endpoints prontos: Autenticação e usuários](#endpoints-prontos-autenticação-e-usuários)). Exigem token: `GET /api/auth/me`, `POST /api/auth/logout`, `POST /api/usuarios`, `/api/propriedades`, `/api/sensores`, `/api/lotes`, `/api/leituras` e `/api/alertas`. Cada usuário vê só o que é dele (veja [Quem vê o quê](#quem-vê-o-quê-propriedades-sensores-e-lotes)). `/api/culturas` e `/api/precos` continuam abertas por enquanto.
+A autenticação usa JWT e o login já está pronto (veja [Endpoints prontos: Autenticação e usuários](#endpoints-prontos-autenticação-e-usuários)). Exigem token: `GET /api/auth/me`, `POST /api/auth/logout`, `POST /api/usuarios`, `/api/propriedades`, `/api/sensores`, `/api/lotes`, `/api/leituras`, `/api/logistica` e `/api/alertas`. Cada usuário vê só o que é dele (veja [Quem vê o quê](#quem-vê-o-quê-propriedades-sensores-e-lotes)). `/api/culturas` e `/api/precos` continuam abertas por enquanto.
 
 Fluxo planejado:
 
@@ -549,6 +559,75 @@ Nas respostas, `dataInstalacao` também vem em `AAAA-MM-DD`.
 
 Erros do cadastro e da edição: `loteId` inexistente, de outra pessoa ou de lote `INATIVO`: 404 "Lote não encontrado." (a mesma resposta nos três casos); lote ativo de propriedade excluída (`INATIVO`): 400. Sensor de outra pessoa: 404.
 
+### Endpoints prontos: Logística
+
+> [!NOTE]
+> **A migration `criar_rota_logistica` já foi aplicada no banco compartilhado em 08/10/2026** (com `migrate deploy`, status "up to date"). A tabela `RotaLogistica` existe lá, então `/api/logistica` funciona no ambiente que usa o banco compartilhado.
+
+Exigem token. Cada usuário vê só as rotas logísticas das próprias propriedades (veja [Quem vê o quê](#quem-vê-o-quê-propriedades-sensores-e-lotes)). Cada registro guarda origem, destino, modal, tempo, custo, transportadora e situação do transporte de uma propriedade.
+
+| Verbo | Rota | O que faz | Sucesso |
+|---|---|---|---|
+| GET | `/api/logistica?propriedadeId=&modal=&situacao=&pagina=&limite=` | Lista os registros ativos visíveis ao usuário, com paginação. Todos os filtros são opcionais | 200 |
+| GET | `/api/logistica/:id` | Detalhe de um registro ativo. Registro de outra pessoa, inativo ou de propriedade inativa: 404 | 200 |
+| POST | `/api/logistica` | Cadastra um registro (ADMIN ou PRODUTOR). A propriedade precisa ser do usuário | 201 |
+| PUT | `/api/logistica/:id` | Edita de forma **parcial**: o que for omitido mantém o valor salvo (ADMIN ou PRODUTOR, só dos próprios) | 200 |
+| DELETE | `/api/logistica/:id` | Exclusão lógica: o registro vira `INATIVO` e a linha nunca é apagada (ADMIN ou PRODUTOR, só dos próprios) | 204 |
+
+Corpo do POST (todos obrigatórios):
+
+```json
+{
+  "propriedadeId": 1,
+  "origem": "Fazenda São Jorge, Petrolina-PE",
+  "destino": "CEASA Recife",
+  "modal": "RODOVIARIO",
+  "tempoEstimadoHoras": 12.5,
+  "custo": 1850.75,
+  "transportadora": "Transportes Exemplo",
+  "situacao": "PLANEJADA"
+}
+```
+
+Valores aceitos (em maiúsculas, exatamente assim; qualquer outro valor dá 400 e a resposta lista os aceitos):
+
+| Campo | Valores |
+|---|---|
+| `modal` | `RODOVIARIO`, `FERROVIARIO`, `AEREO`, `MARITIMO` |
+| `situacao` | `PLANEJADA`, `EM_TRANSITO`, `ENTREGUE`, `CANCELADA` |
+
+Exemplo de registro na resposta (`tempoEstimadoHoras` e `custo` saem como número):
+
+```json
+{
+  "id": 1,
+  "propriedadeId": 1,
+  "origem": "Fazenda São Jorge, Petrolina-PE",
+  "destino": "CEASA Recife",
+  "modal": "RODOVIARIO",
+  "tempoEstimadoHoras": 12.5,
+  "custo": 1850.75,
+  "transportadora": "Transportes Exemplo",
+  "situacao": "PLANEJADA",
+  "status": "ATIVO",
+  "criadoEm": "2026-10-08T15:00:00.000Z",
+  "atualizadoEm": "2026-10-08T15:00:00.000Z"
+}
+```
+
+**Regras de validação** (erro 400 com `campos`, uma mensagem por campo):
+
+- `origem`, `destino` e `transportadora`: de 1 a 150 caracteres, sem espaços sobrando nas pontas.
+- `tempoEstimadoHoras`: **número** (não texto) maior que 0, até 99999.9, com no máximo 1 casa decimal.
+- `custo`: **número**, em reais, maior ou igual a 0, até 9999999999.99, com no máximo 2 casas decimais. `"10"` (texto) dá 400; `10` (número) vale.
+- No cadastro, `propriedade` de outra pessoa ou inexistente: 404; propriedade `INATIVA`: 400.
+- No PUT, mande só o que quer mudar. `id`, `status`, `usuarioId` e `propriedadeId` enviados no corpo são **ignorados**: o dono é sempre o da propriedade, e o registro novo nasce `ATIVO`.
+- `TECNICO` não vê nem escreve nada (lista vazia, 404 por id, e 403 ao criar, editar ou apagar).
+
+**Listagem:** os filtros `modal` e `situacao` seguem os valores aceitos acima, e `propriedadeId` precisa ser inteiro positivo (de outra pessoa, a lista vem vazia). `pagina` (padrão 1) e `limite` (padrão 20, máximo 100) seguem o formato de Leituras: a resposta é `{ "dados": [...], "paginacao": { "pagina", "limite", "total", "totalPaginas" } }`, ordenada por `id`. Filtro inválido dá 400.
+
+Um registro `INATIVO`, ou de uma propriedade `INATIVA`, fica escondido de todos, **inclusive do ADMIN**: some da lista e responde 404 em `GET`, `PUT` e `DELETE`. Não existe rota para reativar.
+
 ### Endpoints prontos: Lotes
 
 Exigem token. Cada usuário vê só os lotes das próprias propriedades (veja [Quem vê o quê](#quem-vê-o-quê-propriedades-sensores-e-lotes)).
@@ -751,6 +830,7 @@ Regras: `nome` com 1 a 150 caracteres; `email` em formato válido, até 254 cara
 
   O `migrate deploy` só aplica as migrations novas. Ele nunca propõe reset.
 - Depois que um pull request com migration for mesclado, alguém precisa aplicá-la no banco compartilhado com o `migrate deploy` acima. Enquanto isso não acontece, o código novo pode falhar ao usar tabelas ou colunas que o banco ainda não tem.
+- **Migrations já aplicadas no banco compartilhado:** `criar_rota_logistica` (cria a tabela `RotaLogistica`) foi aplicada em 08/10/2026, com o `migrate deploy` acima.
 - **Nunca** rode `npx prisma migrate reset` no banco compartilhado: ele apaga todos os dados.
 
 ## Variáveis de ambiente
@@ -817,5 +897,5 @@ Regras:
 
 MVP em desenvolvimento. A 1ª entrega é em 13/10/2026.
 
-- Pronto: Propriedades, Culturas, Sensores e Lotes (APIs em `/api/propriedades`, `/api/culturas`, `/api/sensores` e `/api/lotes`), alertas de temperatura e umidade pelas leituras do sensor (`GET /api/alertas`), login (`/api/auth/login`, `/api/auth/me`, `/api/auth/logout`), criação de usuários por ADMIN (`POST /api/usuarios`) e visibilidade por dono em propriedades, sensores e lotes.
+- Pronto: Propriedades, Culturas, Sensores, Lotes e Logística (APIs em `/api/propriedades`, `/api/culturas`, `/api/sensores`, `/api/lotes` e `/api/logistica`; a migration da Logística já foi aplicada no banco compartilhado), alertas de temperatura e umidade pelas leituras do sensor (`GET /api/alertas`), login (`/api/auth/login`, `/api/auth/me`, `/api/auth/logout`), criação de usuários por ADMIN (`POST /api/usuarios`) e visibilidade por dono em propriedades, sensores e lotes.
 - Próximas tarefas: exigir login em Culturas e Preços, ligar técnico a propriedades, colocar as Leituras para rodar no Render (a busca por agendamento no ThingSpeak e o `GET /api/leituras` já existem; falta criar o sensor e as variáveis no Render) e recuperação de senha.

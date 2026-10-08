@@ -35,10 +35,17 @@ function filtroLoteAtivo(usuario) {
   return { status: "ATIVO", ...filtroLote(usuario) };
 }
 
+// Rota logistica pertence direto a uma propriedade e herda o dono dela. Nao filtra status aqui:
+// quem exige propriedade e registro ATIVOS e o logisticaService.
+function filtroRotaLogistica(usuario) {
+  const filtro = filtroPropriedade(usuario);
+  return Object.keys(filtro).length === 0 ? {} : { propriedade: filtro };
+}
+
 // Leitura herda o dono do sensor (leitura -> sensor -> lote -> propriedade).
 function filtroLeitura(usuario) {
   const filtro = filtroSensor(usuario);
   return Object.keys(filtro).length === 0 ? {} : { sensor: filtro };
 }
 
-module.exports = { filtroPropriedade, filtroLote, filtroLoteAtivo, filtroSensor, filtroLeitura };
+module.exports = { filtroPropriedade, filtroLote, filtroLoteAtivo, filtroSensor, filtroLeitura, filtroRotaLogistica };

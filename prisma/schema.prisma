@@ -44,6 +44,7 @@ model Propriedade {
   usuarioId    Int
   usuario      Usuario  @relation(fields: [usuarioId], references: [id])
   lotes        Lote[]
+  rotasLogistica RotaLogistica[]
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
 
@@ -110,4 +111,25 @@ model Leitura {
   // Impede gravar a mesma leitura duas vezes se o agendamento buscar o mesmo trecho de novo.
   // Este unique ja cria o indice (sensorId, dataHoraLeitura) que serve as consultas por sensor e periodo.
   @@unique([sensorId, dataHoraLeitura])
+}
+
+// Informacoes logisticas de uma propriedade: origem, destino, modal, tempo, custo, transportadora e situacao.
+// modal e situacao sao texto; a lista de valores aceitos fica no validator (como Lote.situacao, sem enum).
+model RotaLogistica {
+  id                 Int         @id @default(autoincrement())
+  propriedadeId      Int
+  origem             String      @db.VarChar(150)
+  destino            String      @db.VarChar(150)
+  modal              String      @db.VarChar(20)
+  tempoEstimadoHoras Decimal     @db.Decimal(6, 1)
+  custo              Decimal     @db.Decimal(12, 2) // em reais
+  transportadora     String      @db.VarChar(150)
+  situacao           String      @db.VarChar(20)
+  // Exclusao logica: DELETE so marca INATIVO e a linha nunca e apagada.
+  status             Status      @default(ATIVO)
+  criadoEm           DateTime    @default(now())
+  atualizadoEm       DateTime    @updatedAt
+  propriedade        Propriedade @relation(fields: [propriedadeId], references: [id])
+
+  @@index([propriedadeId])
 }
