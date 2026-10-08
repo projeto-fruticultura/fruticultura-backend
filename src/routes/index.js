@@ -20,7 +20,7 @@ routes.get('/health', (req, res) => {
 routes.use('/culturas', culturaRoutes);
 routes.use('/propriedades', propriedadeRoutes);
 routes.use('/sensores', sensorRoutes);
-// Somente leitura; exige login e mostra so os lotes das propriedades do usuario.
+// Exige login; CRUD completo (GET, POST, PUT e DELETE com exclusao logica) so nos lotes das propriedades do usuario.
 routes.use('/lotes', loteRoutes);
 // So consulta; exige login e mostra so as leituras dos sensores das propriedades do usuario.
 routes.use('/leituras', leituraRoutes);
