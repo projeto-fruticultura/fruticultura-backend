@@ -114,7 +114,7 @@ prisma/
 
 ## Endpoints planejados
 
-Os endpoints abaixo são uma proposta inicial e poderão ser ajustados. Já estão prontos: Propriedades, Culturas, Sensores, Lotes, `GET /api/leituras`, `POST /api/auth/login`, `GET /api/auth/me`, `POST /api/auth/logout` e `POST /api/usuarios` (veja [Endpoints prontos: Autenticação e usuários](#endpoints-prontos-autenticação-e-usuários)).
+Os endpoints abaixo são uma proposta inicial e poderão ser ajustados. Já estão prontos: Propriedades, Culturas, Sensores, Lotes, `GET /api/leituras`, `GET /api/alertas`, `POST /api/auth/login`, `GET /api/auth/me`, `POST /api/auth/logout` e `POST /api/usuarios` (veja [Endpoints prontos: Autenticação e usuários](#endpoints-prontos-autenticação-e-usuários)).
 
 ### Autenticação
 
@@ -180,6 +180,12 @@ DELETE /api/sensores/:id
 GET /api/leituras
 ```
 
+### Alertas
+
+```text
+GET /api/alertas
+```
+
 ### Dados da NASA
 
 ```text
@@ -218,7 +224,7 @@ A NASA POWER é uma fonte meteorológica externa. Ela não substitui as leituras
 
 ## Autenticação e autorização
 
-A autenticação usa JWT e o login já está pronto (veja [Endpoints prontos: Autenticação e usuários](#endpoints-prontos-autenticação-e-usuários)). Exigem token: `GET /api/auth/me`, `POST /api/auth/logout`, `POST /api/usuarios`, `/api/propriedades`, `/api/sensores`, `/api/lotes` e `/api/leituras`. Cada usuário vê só o que é dele (veja [Quem vê o quê](#quem-vê-o-quê-propriedades-sensores-e-lotes)). `/api/culturas` e `/api/precos` continuam abertas por enquanto.
+A autenticação usa JWT e o login já está pronto (veja [Endpoints prontos: Autenticação e usuários](#endpoints-prontos-autenticação-e-usuários)). Exigem token: `GET /api/auth/me`, `POST /api/auth/logout`, `POST /api/usuarios`, `/api/propriedades`, `/api/sensores`, `/api/lotes`, `/api/leituras` e `/api/alertas`. Cada usuário vê só o que é dele (veja [Quem vê o quê](#quem-vê-o-quê-propriedades-sensores-e-lotes)). `/api/culturas` e `/api/precos` continuam abertas por enquanto.
 
 Fluxo planejado:
 
@@ -615,6 +621,54 @@ Exemplo de lote na resposta:
 
 Um lote `INATIVO` fica escondido de todos, **inclusive do ADMIN**: some da lista e responde 404 em `GET`, `PUT` e `DELETE`. Não existe rota para reativar. O histórico é preservado: os sensores e as leituras de um lote inativo continuam consultáveis em `/api/sensores` e `/api/leituras`. Sensores inativos não recebem novas leituras, e cadastrar ou mover um sensor para um lote inativo dá 404.
 
+### Endpoints prontos: Alertas
+
+Exigem token. Mostram só o que pertence ao usuário logado (veja [Quem vê o quê](#quem-vê-o-quê-propriedades-sensores-e-lotes)): ADMIN vê tudo, PRODUTOR só os sensores das próprias propriedades, e TECNICO recebe lista vazia.
+
+| Verbo | Rota | O que faz | Sucesso |
+|---|---|---|---|
+| GET | `/api/alertas?propriedadeId=&loteId=` | Compara a **última leitura** de cada sensor com os limites de temperatura e umidade da cultura do lote | 200 |
+
+Como funciona:
+
+- O alerta é **calculado na hora**, a cada consulta. Nada é gravado: não há tabela de alertas.
+- Só entram sensores `ATIVO`, de lotes `ATIVO` e de propriedades `ATIVA`. Sensor sem nenhuma leitura não gera alerta (e nenhum valor é inventado).
+- **Valor igual ao limite é normal.** Só alerta se a leitura for estritamente menor que o mínimo ou maior que o máximo da cultura (`temperaturaMin`, `temperaturaMax`, `umidadeMin`, `umidadeMax`). Uma leitura pode gerar dois alertas (temperatura e umidade).
+- Os filtros `propriedadeId` e `loteId` são opcionais e precisam ser inteiros positivos (senão, 400 com `campos`). Um id de outra pessoa não dá erro: a lista vem vazia, como em `GET /api/lotes?propriedadeId=`.
+
+Exemplo de resposta:
+
+```json
+{
+  "total": 1,
+  "alertas": [
+    {
+      "tipo": "TEMPERATURA_ALTA",
+      "valor": 34.2,
+      "limite": 32,
+      "dataHoraLeitura": "2026-10-08T14:05:00.000Z",
+      "leituraDesatualizada": false,
+      "sensorId": 23,
+      "sensorCodigo": "ESP32-EXEMPLO-01",
+      "loteId": 1,
+      "loteIdentificacao": "Lote 1",
+      "propriedadeId": 1,
+      "culturaNome": "Manga"
+    }
+  ]
+}
+```
+
+| Campo | O que é |
+|---|---|
+| `tipo` | `TEMPERATURA_ALTA`, `TEMPERATURA_BAIXA`, `UMIDADE_ALTA` ou `UMIDADE_BAIXA` |
+| `valor` e `limite` | O valor lido e o limite da cultura que foi ultrapassado (o máximo nos alertas "ALTA" e o mínimo nos "BAIXA") |
+| `dataHoraLeitura` | Quando o sensor mediu, em ISO 8601 (UTC) |
+| `leituraDesatualizada` | `true` quando a última leitura tem **mais de 60 minutos**. O alerta continua valendo, mas o dado pode estar velho. **Com o agendador de leituras desligado, todo alerta virá com `true`**, porque nenhuma leitura nova chega |
+| `sensorId`, `sensorCodigo`, `loteId`, `loteIdentificacao`, `propriedadeId`, `culturaNome` | Identificam de onde veio o alerta |
+
+Por dentro: a última leitura de cada sensor é buscada com **uma consulta por sensor** (`findFirst`, que vira `LIMIT 1` no SQL). Não se usa o `take: 1` aninhado dentro da consulta de sensores porque, nesta versão do Prisma (6.19.3), ele busca todas as leituras dos sensores e corta na memória.
+
 ### Quem vê o quê (propriedades, sensores e lotes)
 
 `/api/propriedades`, `/api/sensores` e `/api/lotes` exigem token (`Authorization: Bearer <token>`) e mostram só o que pertence ao usuário logado:
@@ -763,5 +817,5 @@ Regras:
 
 MVP em desenvolvimento. A 1ª entrega é em 13/10/2026.
 
-- Pronto: Propriedades, Culturas, Sensores e Lotes (APIs em `/api/propriedades`, `/api/culturas`, `/api/sensores` e `/api/lotes`), login (`/api/auth/login`, `/api/auth/me`, `/api/auth/logout`), criação de usuários por ADMIN (`POST /api/usuarios`) e visibilidade por dono em propriedades, sensores e lotes.
+- Pronto: Propriedades, Culturas, Sensores e Lotes (APIs em `/api/propriedades`, `/api/culturas`, `/api/sensores` e `/api/lotes`), alertas de temperatura e umidade pelas leituras do sensor (`GET /api/alertas`), login (`/api/auth/login`, `/api/auth/me`, `/api/auth/logout`), criação de usuários por ADMIN (`POST /api/usuarios`) e visibilidade por dono em propriedades, sensores e lotes.
 - Próximas tarefas: exigir login em Culturas e Preços, ligar técnico a propriedades, colocar as Leituras para rodar no Render (a busca por agendamento no ThingSpeak e o `GET /api/leituras` já existem; falta criar o sensor e as variáveis no Render) e recuperação de senha.

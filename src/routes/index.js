@@ -4,6 +4,7 @@ const propriedadeRoutes = require('./propriedadeRoutes');
 const sensorRoutes = require('./sensorRoutes');
 const loteRoutes = require('./loteRoutes');
 const leituraRoutes = require('./leituraRoutes');
+const alertaRoutes = require('./alertaRoutes');
 const mercadoRoutes = require('./mercadoRoutes.js'); // Importa aqui
 const authRoutes = require('./authRoutes');
 const usuarioRoutes = require('./usuarioRoutes');
@@ -21,9 +22,11 @@ routes.use('/sensores', sensorRoutes);
 routes.use('/lotes', loteRoutes);
 // So consulta; exige login e mostra so as leituras dos sensores das propriedades do usuario.
 routes.use('/leituras', leituraRoutes);
+// So consulta; exige login e calcula os alertas pela ultima leitura dos sensores das propriedades do usuario.
+routes.use('/alertas', alertaRoutes);
 routes.use('/precos', mercadoRoutes); // <--- Tem de estar assim: /precos
 // Login publico; /me e /logout exigem token.
-// /propriedades, /sensores, /lotes e /leituras tambem exigem token; /culturas e /precos continuam abertas por enquanto.
+// /propriedades, /sensores, /lotes, /leituras e /alertas tambem exigem token; /culturas e /precos continuam abertas por enquanto.
 routes.use('/auth', authRoutes);
 // So ADMIN logado cria usuarios (a protecao fica no proprio usuarioRoutes).
 routes.use('/usuarios', usuarioRoutes);
