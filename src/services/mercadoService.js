@@ -11,6 +11,22 @@ const TAMANHO_MAXIMO_BYTES = 400 * 1024 * 1024;
 const VALIDADE_CACHE_MS = 24 * 60 * 60 * 1000;
 // Depois de uma falha, nao tenta de novo por um tempo: sem isso, cada pedido esperaria ate 120 s.
 const ESPERA_APOS_FALHA_MS = 5 * 60 * 1000;
+// Ate 3 tentativas no total, com pausa curta entre elas (2 s e depois 5 s).
+const PAUSAS_ENTRE_TENTATIVAS_MS = [2000, 5000];
+// Nao comeca uma nova tentativa se o download ja gastou mais que isto desde o inicio.
+const ORCAMENTO_TENTATIVAS_MS = 90 * 1000;
+// Erros de rede sem resposta, que costumam passar sozinhos. Qualquer outro erro sem resposta HTTP
+// (cabecalho mudado, nenhum registro valido, passou do tamanho maximo) se repetiria igual e nao e repetido.
+const CODIGOS_FALHA_PASSAGEIRA = new Set([
+  "ECONNRESET",
+  "ETIMEDOUT",
+  "ECONNABORTED",
+  "EAI_AGAIN",
+  "EPIPE",
+  "ECONNREFUSED",
+  "ENOTFOUND",
+  "ERR_STREAM_PREMATURE_CLOSE",
+]);
 const JANELA_DIAS = 365;
 
 // Layout real do arquivo (conferido em 08/10/2026): separador ";", texto em latin1 (apesar do
@@ -121,23 +137,40 @@ async function lerEmFluxo(fluxo, { dataCorte, limiteBytes = TAMANHO_MAXIMO_BYTES
   return registros;
 }
 
+// Diz se vale tentar de novo: resposta HTTP 429 ou 5xx, ou erro de rede sem resposta (lista acima).
+// HTTP 4xx (fora o 429) e o estouro do tempo total nao se repetem: dariam o mesmo resultado, e repetir levaria minutos.
+function ehFalhaPassageira(erro) {
+  if (!erro || erro.naoRepetir) return false;
+  if (erro.response) return erro.response.status === 429 || erro.response.status >= 500;
+  return CODIGOS_FALHA_PASSAGEIRA.has(erro.code);
+}
+
 // Baixa o arquivo da CONAB em fluxo, com limite de tempo para o download inteiro.
+// So o alarme controla o tempo (sem o "timeout" do axios, que usa o mesmo codigo ECONNABORTED de uma conexao cortada).
 async function baixarDaConab() {
   const controle = new AbortController();
   let fluxo = null;
+  let estourouTempo = false;
   const alarme = setTimeout(() => {
+    estourouTempo = true;
     controle.abort();
-    if (fluxo) fluxo.destroy(new Error(`O download da CONAB passou de ${TEMPO_MAXIMO_MS / 1000} s.`));
+    if (fluxo) fluxo.destroy();
   }, TEMPO_MAXIMO_MS);
 
   try {
     const resposta = await axios.get(URL_CONAB, {
       responseType: "stream",
       signal: controle.signal,
-      timeout: TEMPO_MAXIMO_MS,
     });
     fluxo = resposta.data;
     return await lerEmFluxo(fluxo, { dataCorte: dataDeCorte() });
+  } catch (erro) {
+    if (estourouTempo) {
+      const estouro = new Error(`O download da CONAB passou de ${TEMPO_MAXIMO_MS / 1000} s.`);
+      estouro.naoRepetir = true;
+      throw estouro;
+    }
+    throw erro;
   } finally {
     clearTimeout(alarme);
   }
@@ -147,19 +180,21 @@ class MercadoService {
   // Devolve os registros do cache; baixa de novo se o cache venceu (ou nao existe).
   // Falha com cache antigo: devolve o cache marcado como desatualizado.
   // Falha sem cache: 503. Nunca existe preco inventado.
-  async obterRegistros() {
+  // Falha de um pedido real ativa a espera de 5 minutos antes de um novo ciclo. "contarFalha: false" e so do
+  // aquecimento: a falha dele nao ativa a espera, para o primeiro pedido real tentar de novo (com as 3 tentativas).
+  async obterRegistros({ contarFalha = true } = {}) {
     const agora = Date.now();
     if (cache && agora - cache.baixadoEm < VALIDADE_CACHE_MS) {
       return { registros: cache.registros, baixadoEm: cache.baixadoEm, desatualizado: false };
     }
 
     if (!downloadEmAndamento && agora - ultimaFalhaEm >= ESPERA_APOS_FALHA_MS) {
-      downloadEmAndamento = this.baixar()
+      downloadEmAndamento = this.baixarComTentativas()
         .then((registros) => {
           cache = { registros, baixadoEm: Date.now() };
         })
         .catch((erro) => {
-          ultimaFalhaEm = Date.now();
+          if (contarFalha) ultimaFalhaEm = Date.now();
           // Aqui so a mensagem: o objeto de erro do axios traz a URL e os cabecalhos.
           console.error("Erro ao ler a CONAB:", erro.message);
           throw erro;
@@ -183,9 +218,43 @@ class MercadoService {
     throw new ErroHttp(503, "Dados de mercado indisponíveis no momento. Tente novamente mais tarde.");
   }
 
+  // Ate 3 tentativas no total (pausa de 2 s e depois de 5 s), dentro do mesmo download compartilhado:
+  // quem espera continua esperando este mesmo resultado, e nunca ha dois downloads ao mesmo tempo.
+  // So repete falha passageira (ver ehFalhaPassageira) e nao comeca nova tentativa depois de 90 s de download.
+  async baixarComTentativas() {
+    const inicio = Date.now();
+    const total = PAUSAS_ENTRE_TENTATIVAS_MS.length + 1;
+    for (let tentativa = 1; ; tentativa++) {
+      try {
+        return await this.baixar();
+      } catch (erro) {
+        const pausa = PAUSAS_ENTRE_TENTATIVAS_MS[tentativa - 1];
+        if (pausa === undefined || !ehFalhaPassageira(erro) || Date.now() - inicio > ORCAMENTO_TENTATIVAS_MS) throw erro;
+        console.error(`CONAB: tentativa ${tentativa} de ${total} falhou (${erro.message}); nova tentativa em ${pausa / 1000} s.`);
+        await new Promise((resolver) => setTimeout(resolver, pausa));
+        if (Date.now() - inicio > ORCAMENTO_TENTATIVAS_MS) throw erro;
+      }
+    }
+  }
+
   // Separado para os testes poderem trocar o download por um falso.
   baixar() {
     return baixarDaConab();
+  }
+
+  // Carrega o cache em segundo plano, pelo mesmo caminho dos pedidos (pedidos que chegarem durante o
+  // aquecimento esperam o mesmo download). Nunca rejeita: falha so registra uma linha curta com a mensagem,
+  // e o servidor segue de pe. Quem chama nao precisa esperar.
+  async aquecer() {
+    console.log("CONAB: carregando o cache de preços em segundo plano.");
+    const inicio = Date.now();
+    try {
+      const { registros, desatualizado } = await this.obterRegistros({ contarFalha: false });
+      if (desatualizado) console.error("CONAB: o aquecimento falhou; seguindo com o cache antigo.");
+      else console.log(`CONAB: cache pronto (${registros.length} registros, ${((Date.now() - inicio) / 1000).toFixed(1)} s).`);
+    } catch (erro) {
+      console.error(`CONAB: o aquecimento falhou (${erro.message}); o primeiro pedido tentará de novo.`);
+    }
   }
 
   async consultarPrecos({ produto, uf, ceasa, limite }) {
