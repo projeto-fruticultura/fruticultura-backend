@@ -114,7 +114,7 @@ prisma/
 
 ## Endpoints planejados
 
-Os endpoints abaixo são uma proposta inicial e poderão ser ajustados. Já estão prontos: Propriedades, Culturas, Sensores, Lotes, Logística, `GET /api/leituras`, `GET /api/alertas`, `POST /api/auth/login`, `GET /api/auth/me`, `POST /api/auth/logout` e `POST /api/usuarios` (veja [Endpoints prontos: Autenticação e usuários](#endpoints-prontos-autenticação-e-usuários)).
+Os endpoints abaixo são uma proposta inicial e poderão ser ajustados. Já estão prontos: Propriedades, Culturas, Sensores, Lotes, Logística, `GET /api/leituras`, `GET /api/alertas`, `GET /api/dashboard/resumo`, `GET /api/dashboard/medias`, `POST /api/auth/login`, `GET /api/auth/me`, `POST /api/auth/logout` e `POST /api/usuarios` (veja [Endpoints prontos: Autenticação e usuários](#endpoints-prontos-autenticação-e-usuários)).
 
 ### Autenticação
 
@@ -234,7 +234,7 @@ A NASA POWER é uma fonte meteorológica externa. Ela não substitui as leituras
 
 ## Autenticação e autorização
 
-A autenticação usa JWT e o login já está pronto (veja [Endpoints prontos: Autenticação e usuários](#endpoints-prontos-autenticação-e-usuários)). Exigem token: `GET /api/auth/me`, `POST /api/auth/logout`, `POST /api/usuarios`, `/api/propriedades`, `/api/sensores`, `/api/lotes`, `/api/leituras`, `/api/logistica` e `/api/alertas`. Cada usuário vê só o que é dele (veja [Quem vê o quê](#quem-vê-o-quê-propriedades-sensores-e-lotes)). `/api/culturas` e `/api/precos` continuam abertas por enquanto.
+A autenticação usa JWT e o login já está pronto (veja [Endpoints prontos: Autenticação e usuários](#endpoints-prontos-autenticação-e-usuários)). Exigem token: `GET /api/auth/me`, `POST /api/auth/logout`, `POST /api/usuarios`, `/api/propriedades`, `/api/sensores`, `/api/lotes`, `/api/leituras`, `/api/logistica`, `/api/alertas` e `/api/dashboard`. Cada usuário vê só o que é dele (veja [Quem vê o quê](#quem-vê-o-quê-propriedades-sensores-e-lotes)). `/api/culturas` e `/api/precos` continuam abertas por enquanto.
 
 Fluxo planejado:
 
@@ -748,6 +748,77 @@ Exemplo de resposta:
 
 Por dentro: a última leitura de cada sensor é buscada com **uma consulta por sensor** (`findFirst`, que vira `LIMIT 1` no SQL). Não se usa o `take: 1` aninhado dentro da consulta de sensores porque, nesta versão do Prisma (6.19.3), ele busca todas as leituras dos sensores e corta na memória.
 
+### Endpoints prontos: Dashboard
+
+Exigem token. Mostram só o que pertence ao usuário logado (veja [Quem vê o quê](#quem-vê-o-quê-propriedades-sensores-e-lotes)): ADMIN vê tudo, PRODUTOR só os sensores das próprias propriedades, e TECNICO recebe resposta vazia. O dono vem sempre do token, nunca da query.
+
+| Verbo | Rota | O que faz | Sucesso |
+|---|---|---|---|
+| GET | `/api/dashboard/resumo?propriedadeId=&culturaId=&sensorId=` | O "agora": a última leitura e o total de alertas | 200 |
+| GET | `/api/dashboard/medias?agrupar=&propriedadeId=&culturaId=&sensorId=&de=&ate=` | Média de temperatura e de umidade por hora ou por dia | 200 |
+
+Os filtros `propriedadeId`, `culturaId` e `sensorId` são opcionais e precisam ser inteiros positivos (senão, 400 com `campos`). Um `propriedadeId` ou `culturaId` de outra pessoa (ou que não existe) não dá erro: a resposta vem vazia. Já um `sensorId` de outra pessoa e um `sensorId` que não existe dão o **mesmo 404** "Sensor não encontrado.". Qualquer parâmetro que a rota não conhece é ignorado.
+
+**`GET /api/dashboard/resumo`**
+
+- Só vale o "agora": os parâmetros `de`, `ate` e `agrupar` são **ignorados** aqui.
+- `ultimaLeitura` é a leitura mais recente, e só vem de sensor `ATIVO`, de lote `ATIVO` e de propriedade `ATIVA` (o mesmo conjunto dos alertas). Assim, o "agora" nunca vem de algo desativado. Sem nenhuma leitura, ou com um `sensorId` de sensor inativo, vem `null` (a resposta continua 200).
+- `totalAlertas` é o mesmo número que `GET /api/alertas` devolve para o mesmo escopo e filtros (calculado a partir da última leitura de cada sensor, igual ao `/api/alertas`).
+
+Exemplo de resposta:
+
+```json
+{
+  "ultimaLeitura": {
+    "sensorId": 23,
+    "sensorCodigo": "ESP32-EXEMPLO-01",
+    "temperatura": 35,
+    "umidade": 50,
+    "dataHoraLeitura": "2026-10-08T14:05:00.000Z"
+  },
+  "totalAlertas": 1
+}
+```
+
+**`GET /api/dashboard/medias`**
+
+- `agrupar`: `hora` (padrão) ou `dia`. Qualquer outro valor dá 400.
+- O agrupamento usa o **fuso fixo de Recife** (`America/Recife`, UTC-3, sem horário de verão). Cada `periodo` vem como a hora de Recife, com o deslocamento `-03:00` (por exemplo `2026-10-01T11:00:00-03:00`), e o dia vai de 00:00 a 23:59 de Recife.
+- **Atenção a `de` e `ate`:** sem hora (`AAAA-MM-DD`), valem como **dia em Recife**: `de=2026-10-01` começa em 01/10 às 00:00 de Recife (03:00Z) e `ate=2026-10-01` vai até 01/10 às 23:59:59.999 de Recife (02:59:59.999Z do dia 02). Isso é **diferente do `GET /api/leituras`**, onde uma data sem hora vale o dia em UTC. Com hora e `Z` (por exemplo `2026-10-01T12:00:00Z`), vale o instante exato em UTC, como no `/api/leituras`. Fuso com `+hh:mm` dá 400.
+- **Janela padrão:** sem `de` e sem `ate`, vale `ate` = agora e `de` = 24 horas antes (`agrupar=hora`) ou 7 dias antes (`agrupar=dia`). Só `de`: `ate` = agora. Só `ate`: `de` = `ate` menos a janela padrão. A resposta mostra, em `de` e `ate`, a janela que de fato foi usada.
+- **Limite de período** (para não pesar o banco): no máximo **7 dias** com `agrupar=hora` e **90 dias** com `agrupar=dia` (exatamente o máximo ainda vale). Acima disso, 400 com a mensagem do máximo. `de` maior que `ate` também dá 400.
+- **Horas e dias sem leitura não aparecem** na lista (nunca se inventa zero nem valor); a lista vem em ordem crescente de `periodo`. As médias saem com 2 casas decimais.
+- **Escopo do histórico:** diferente do `/resumo`, as médias **incluem** leituras de sensor `INATIVO` e de lote `INATIVO` (o histórico continua visível, como em `GET /api/leituras`). Só a propriedade `INATIVA` esconde as leituras.
+
+Exemplo de resposta:
+
+```json
+{
+  "agrupar": "hora",
+  "fuso": "America/Recife",
+  "de": "2026-10-07T21:00:00.000Z",
+  "ate": "2026-10-08T21:00:00.000Z",
+  "dados": [
+    { "periodo": "2026-10-08T14:00:00-03:00", "temperaturaMedia": 28.4, "umidadeMedia": 61.2, "quantidade": 12 }
+  ]
+}
+```
+
+| Campo | O que é |
+|---|---|
+| `agrupar` | `hora` ou `dia` |
+| `fuso` | Sempre `America/Recife` |
+| `de` e `ate` | A janela usada, em ISO 8601 (UTC) |
+| `periodo` | Início da hora ou do dia, em Recife, com `-03:00` |
+| `temperaturaMedia` e `umidadeMedia` | Médias do período, com 2 casas decimais |
+| `quantidade` | Quantas leituras entraram na média |
+
+| Status | Quando |
+|---|---|
+| 400 | Filtro inválido (com `campos`), `agrupar` inválido, data inválida, `de` maior que `ate` ou período acima do máximo |
+| 401 | Sem token, token inválido ou expirado |
+| 404 | `sensorId` inexistente ou de outra pessoa (a mesma resposta nos dois casos) |
+
 ### Quem vê o quê (propriedades, sensores e lotes)
 
 `/api/propriedades`, `/api/sensores` e `/api/lotes` exigem token (`Authorization: Bearer <token>`) e mostram só o que pertence ao usuário logado:
@@ -897,5 +968,5 @@ Regras:
 
 MVP em desenvolvimento. A 1ª entrega é em 13/10/2026.
 
-- Pronto: Propriedades, Culturas, Sensores, Lotes e Logística (APIs em `/api/propriedades`, `/api/culturas`, `/api/sensores`, `/api/lotes` e `/api/logistica`; a migration da Logística já foi aplicada no banco compartilhado), alertas de temperatura e umidade pelas leituras do sensor (`GET /api/alertas`), login (`/api/auth/login`, `/api/auth/me`, `/api/auth/logout`), criação de usuários por ADMIN (`POST /api/usuarios`) e visibilidade por dono em propriedades, sensores e lotes.
+- Pronto: Propriedades, Culturas, Sensores, Lotes e Logística (APIs em `/api/propriedades`, `/api/culturas`, `/api/sensores`, `/api/lotes` e `/api/logistica`; a migration da Logística já foi aplicada no banco compartilhado), alertas de temperatura e umidade pelas leituras do sensor (`GET /api/alertas`), resumo e médias do dashboard (`GET /api/dashboard/resumo` e `GET /api/dashboard/medias`), login (`/api/auth/login`, `/api/auth/me`, `/api/auth/logout`), criação de usuários por ADMIN (`POST /api/usuarios`) e visibilidade por dono em propriedades, sensores e lotes.
 - Próximas tarefas: exigir login em Culturas e Preços, ligar técnico a propriedades, colocar as Leituras para rodar no Render (a busca por agendamento no ThingSpeak e o `GET /api/leituras` já existem; falta criar o sensor e as variáveis no Render) e recuperação de senha.

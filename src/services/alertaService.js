@@ -33,13 +33,16 @@ function avaliarLimites(leitura, cultura, agora = new Date()) {
 // So entram sensor ATIVO, de lote ATIVO e de propriedade ATIVA, dentro do escopo do usuario
 // (ADMIN ve tudo, PRODUTOR so o que e dele, TECNICO nada). O dono nunca vem da query.
 // "filtros" ja vem validado do alertaValidator. propriedadeId ou loteId fora do escopo dao lista vazia.
-async function listar(usuario, { propriedadeId, loteId } = {}) {
+// culturaId e sensorId (opcionais) existem para o dashboard; a rota GET /alertas nao os usa.
+async function listar(usuario, { propriedadeId, loteId, culturaId, sensorId } = {}) {
   const filtros = [
     filtroSensor(usuario),
     { lote: { status: "ATIVO", propriedade: { status: "ATIVO" } } },
   ];
   if (loteId) filtros.push({ loteId });
   if (propriedadeId) filtros.push({ lote: { propriedadeId } });
+  if (culturaId) filtros.push({ lote: { culturaId } });
+  if (sensorId) filtros.push({ id: sensorId });
 
   const sensores = await prisma.sensor.findMany({
     where: { status: "ATIVO", AND: filtros },
