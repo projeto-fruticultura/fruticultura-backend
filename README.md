@@ -438,6 +438,57 @@ Corpo do POST/PUT (`variedade` e `descricao` são opcionais; mínimo não pode s
 }
 ```
 
+### Endpoints prontos: Preços de mercado (CONAB)
+
+Não exige token (como Culturas, por enquanto). Traz os preços diários de atacado das CEASAs, lidos do arquivo ProHort da CONAB, só de UVA, MANGA, BANANA, GOIABA e MELAO.
+
+| Verbo | Rota | O que faz | Sucesso |
+|---|---|---|---|
+| GET | `/api/precos?produto=&uf=&ceasa=&limite=` | Lista os preços do filtro, do mais novo para o mais antigo | 200 |
+
+Filtros:
+
+- `produto` (obrigatório): `UVA`, `MANGA`, `BANANA`, `GOIABA` ou `MELAO` (maiúscula e acento não importam: `Melão` vale). Qualquer outro produto dá **400**, e a mensagem lista os aceitos;
+- `uf` (obrigatório): sigla do estado, como `PE`;
+- `ceasa` (opcional): trecho do nome da CEASA, sem diferença de maiúscula ou acento (por exemplo, `recife`);
+- `limite` (opcional): de 1 a 100, padrão 10.
+
+Exemplo de resposta (`GET /api/precos?produto=UVA&uf=PE&limite=1`):
+
+```json
+{
+  "fonte": "CONAB/PROHORT",
+  "origem": "https://portaldeinformacoes.conab.gov.br/downloads/arquivos/ProhortDiario.txt",
+  "consultadoEn": "2026-10-08T13:10:57.394Z",
+  "filtros": { "produto": "UVA", "uf": "PE", "ceasa": null },
+  "precoAtual": {
+    "municipio": "RECIFE-PE",
+    "uf": "PE",
+    "ceasa": "CEASA/PE - RECIFE",
+    "produto": "UVA",
+    "variedade": "ITALIA",
+    "unidade": "KG",
+    "data": "2026-10-07",
+    "preco": 5.56
+  },
+  "historico": [ { "...": "mesmo formato do precoAtual" } ]
+}
+```
+
+Como ler a resposta:
+
+- `data` vem em `AAAA-MM-DD`. `variedade` pode ser `null` (MANGA e GOIABA não têm variedade no arquivo).
+- `precoAtual` é o primeiro item do `historico`: o registro **mais novo entre todas as variedades e CEASAs do filtro**. Como cada variedade e cada CEASA têm preço próprio, ele pode mudar de uma para outra de um dia para o outro. Para um preço estável, use `ceasa=`.
+- Sem nenhum registro para o filtro: `historico` vem `[]` e `precoAtual` vem `null`. Nunca há preço inventado.
+- `consultadoEn` é a hora em que o arquivo da CONAB foi baixado pela última vez, e não a hora do seu pedido.
+
+Como funciona por dentro:
+
+- O arquivo da CONAB tem mais de 170 MB. O backend baixa **uma vez**, em fluxo, guarda em memória só os 5 produtos dos últimos 12 meses e usa esse cache por **24 horas**. O primeiro pedido depois de subir o servidor leva alguns segundos; os seguintes saem do cache.
+- Limites do download: 120 segundos e 400 MB. Se o cabeçalho do arquivo mudar, o backend recusa o arquivo em vez de ler colunas erradas.
+- Se a CONAB falhar e **não** houver cache: **503** com `{ "erro": "Dados de mercado indisponíveis no momento. ..." }`. Se falhar, mas houver cache antigo: devolve o cache com `"desatualizado": true`. Depois de uma falha, o backend espera 5 minutos antes de tentar de novo.
+- O `POST /api/precos` foi removido (responde 404).
+
 ### Endpoints prontos: Sensores
 
 Exigem token. Cada usuário vê só os sensores das próprias propriedades (veja [Quem vê o quê](#quem-vê-o-quê-propriedades-sensores-e-lotes)).
@@ -566,7 +617,7 @@ Regras:
 | POST | `/api/auth/logout` | token | Só responde 204: o servidor não guarda sessão. Quem "desloga" é o front, apagando o token, que expira sozinho (padrão: 2h) | 204 |
 | POST | `/api/usuarios` | token de ADMIN | Cria um usuário com perfil `PRODUTOR`, `TECNICO` ou `ADMIN` | 201 |
 
-Não há cadastro público: só um ADMIN logado cria usuários, **inclusive outros ADMIN**. O primeiro ADMIN é o do seed (`SEED_ADMIN_EMAIL`).
+Não existe cadastro público: só um ADMIN logado cria usuários, **inclusive outros ADMIN**. O primeiro ADMIN é o do seed (`SEED_ADMIN_EMAIL`). **Não abra essa rota**: se o `POST /api/usuarios` ficar sem login, qualquer pessoa poderia criar uma conta ADMIN.
 
 Corpo do login (o e-mail aceita maiúsculas e espaços nas pontas; a senha tem no máximo 72 bytes):
 
