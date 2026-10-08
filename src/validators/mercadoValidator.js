@@ -48,4 +48,4 @@ const UFS = [
     };
   }
   
-  module.exports = { validarFiltrosPrecos, PRODUTOS_ACEITOS };
+  module.exports = { validarFiltrosPrecos, PRODUTOS_ACEITOS, UFS };

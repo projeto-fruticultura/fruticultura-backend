@@ -285,3 +285,5 @@ class MercadoService {
 }
 
 module.exports = new MercadoService();
+// Reaproveitada fora daqui (ex.: culturaService transforma o nome da cultura em produto); nao muda nada neste servico.
+module.exports.semAcento = semAcento;

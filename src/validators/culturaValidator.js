@@ -1,6 +1,11 @@
 const { ErroHttp } = require("../middlewares/erros");
 // Mesma regra de :id de Propriedades; importado para nao manter duas copias.
 const { validarId } = require("./propriedadeValidator");
+// Mesma lista de UFs do GET /api/precos; importada para nao manter duas copias.
+const { UFS } = require("./mercadoValidator");
+
+// UF usada na cotacao quando a query nao traz ?uf=.
+const UF_PADRAO = "PE";
 
 function validarTextoObrigatorio(valor, min, max) {
   if (valor === undefined || valor === null || valor === "") return "é obrigatório.";
@@ -107,4 +112,16 @@ function validarCoordenadas(query) {
   return { latitude: lat.numero, longitude: lon.numero };
 }
 
-module.exports = { validarCultura, validarCoordenadas, validarId };
+// ?uf= e opcional (sem ele, usa PE). Com ele, vale a mesma regra do GET /api/precos: sigla de um estado,
+// sem diferenca de maiuscula. Vazio, numero ou lista repetida (?uf=BA&uf=PE, que chega como array) dao 400.
+function validarUf(query) {
+  const bruto = query.uf;
+  if (bruto === undefined) return UF_PADRAO;
+  const uf = typeof bruto === "string" ? bruto.trim().toUpperCase() : "";
+  if (!UFS.includes(uf)) {
+    throw new ErroHttp(400, "UF inválida.", { uf: "uf deve ser a sigla de um estado, como PE ou BA." });
+  }
+  return uf;
+}
+
+module.exports = { validarCultura, validarCoordenadas, validarUf, validarId };
