@@ -478,8 +478,8 @@ Erros do cadastro e da edição: `loteId` inexistente, de outra pessoa ou de lot
 
 ### Endpoints prontos: Logística
 
-> [!WARNING]
-> **A migration `criar_rota_logistica` ainda NÃO foi aplicada no banco compartilhado.** Ela foi criada só no banco local de teste. Enquanto não for aplicada, `/api/logistica` responde 500 no ambiente que usa o banco compartilhado (as outras rotas não são afetadas). Quem aplica é o Igor, com `npx prisma migrate deploy`, só depois da entrega de 13/10/2026 e com o grupo avisado.
+> [!NOTE]
+> **A migration `criar_rota_logistica` já foi aplicada no banco compartilhado em 08/10/2026** (com `migrate deploy`, status "up to date"). A tabela `RotaLogistica` existe lá, então `/api/logistica` funciona no ambiente que usa o banco compartilhado.
 
 Exigem token. Cada usuário vê só as rotas logísticas das próprias propriedades (veja [Quem vê o quê](#quem-vê-o-quê-propriedades-sensores-e-lotes)). Cada registro guarda origem, destino, modal, tempo, custo, transportadora e situação do transporte de uma propriedade.
 
@@ -699,7 +699,7 @@ Regras: `nome` com 1 a 150 caracteres; `email` em formato válido, até 254 cara
 
   O `migrate deploy` só aplica as migrations novas. Ele nunca propõe reset.
 - Depois que um pull request com migration for mesclado, alguém precisa aplicá-la no banco compartilhado com o `migrate deploy` acima. Enquanto isso não acontece, o código novo pode falhar ao usar tabelas ou colunas que o banco ainda não tem.
-- **Migration pendente no banco compartilhado:** `criar_rota_logistica` (cria a tabela `RotaLogistica`). Só aplicar com o `migrate deploy` acima, depois da entrega de 13/10/2026 e com o grupo avisado. Quando for aplicada, apague este item.
+- **Migrations já aplicadas no banco compartilhado:** `criar_rota_logistica` (cria a tabela `RotaLogistica`) foi aplicada em 08/10/2026, com o `migrate deploy` acima.
 - **Nunca** rode `npx prisma migrate reset` no banco compartilhado: ele apaga todos os dados.
 
 ## Variáveis de ambiente
@@ -765,5 +765,5 @@ Regras:
 
 MVP em desenvolvimento. A 1ª entrega é em 13/10/2026.
 
-- Pronto: Propriedades, Culturas, Sensores, Lotes e Logística (APIs em `/api/propriedades`, `/api/culturas`, `/api/sensores`, `/api/lotes` e `/api/logistica`; a tabela da Logística ainda não existe no banco compartilhado), login (`/api/auth/login`, `/api/auth/me`, `/api/auth/logout`), criação de usuários por ADMIN (`POST /api/usuarios`) e visibilidade por dono em propriedades, sensores e lotes.
+- Pronto: Propriedades, Culturas, Sensores, Lotes e Logística (APIs em `/api/propriedades`, `/api/culturas`, `/api/sensores`, `/api/lotes` e `/api/logistica`; a migration da Logística já foi aplicada no banco compartilhado), login (`/api/auth/login`, `/api/auth/me`, `/api/auth/logout`), criação de usuários por ADMIN (`POST /api/usuarios`) e visibilidade por dono em propriedades, sensores e lotes.
 - Próximas tarefas: exigir login em Culturas e Preços, ligar técnico a propriedades, colocar as Leituras para rodar no Render (a busca por agendamento no ThingSpeak e o `GET /api/leituras` já existem; falta criar o sensor e as variáveis no Render) e recuperação de senha.
