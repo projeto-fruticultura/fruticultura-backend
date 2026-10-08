@@ -99,4 +99,5 @@ function validarFiltrosLeitura(query) {
   return filtros;
 }
 
-module.exports = { validarFiltrosLeitura };
+// lerInteiro e lerData tambem sao usados pelo dashboardValidator, para nao duplicar a validacao.
+module.exports = { validarFiltrosLeitura, lerInteiro, lerData };
