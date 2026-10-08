@@ -3,6 +3,20 @@ const prisma = require('../config/prisma');
 const { ErroHttp } = require('../middlewares/erros');
 const { filtroPropriedade } = require('./escopoDono');
 
+// A NASA usa -999 para "sem dado". Vira null para nao parecer temperatura ou chuva de verdade.
+// So o -999 exato; mesmas chaves e datas.
+function trocarSemDadoPorNull(parametros) {
+  const resultado = {};
+  for (const [nome, dias] of Object.entries(parametros)) {
+    if (dias === null || typeof dias !== "object") throw new Error("Resposta da NASA fora do formato esperado.");
+    resultado[nome] = {};
+    for (const [data, valor] of Object.entries(dias)) {
+      resultado[nome][data] = valor === -999 ? null : valor;
+    }
+  }
+  return resultado;
+}
+
 async function consultarClimaPropriedade(id, usuario) {
   const idNumerico = parseInt(id, 10);
   
@@ -20,10 +34,15 @@ async function consultarClimaPropriedade(id, usuario) {
     throw new ErroHttp(404, "Propriedade não encontrada.");
   }
 
+  // "Faltando" e so null/undefined. Checa antes do Number(), porque Number(null) vira 0,
+  // e 0 e uma coordenada valida (Equador e meridiano de Greenwich).
+  if (propriedade.latitude == null || propriedade.longitude == null) {
+    throw new ErroHttp(400, "A propriedade selecionada não possui latitude e longitude válidas cadastradas.");
+  }
   const latitude = Number(propriedade.latitude);
   const longitude = Number(propriedade.longitude);
 
-  if (!latitude || !longitude) {
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
     throw new ErroHttp(400, "A propriedade selecionada não possui latitude e longitude válidas cadastradas.");
   }
 
@@ -41,6 +60,12 @@ async function consultarClimaPropriedade(id, usuario) {
   try {
     const response = await axios.get(urlNasa, { timeout: 15000 });
 
+    // Resposta sem o bloco esperado e falha da NASA, nao erro nosso.
+    const parametros = response.data?.properties?.parameter;
+    if (!parametros || typeof parametros !== "object") {
+      throw new Error("Resposta da NASA fora do formato esperado.");
+    }
+
     return {
       propriedadeId: propriedade.id,
       nomePropriedade: propriedade.nome,
@@ -50,15 +75,14 @@ async function consultarClimaPropriedade(id, usuario) {
         inicio: formatarDataNasa(dataInicioObj),
         fim: formatarDataNasa(dataFimObj)
       },
-      parametrosClimaticos: response.data.properties.parameter
+      parametrosClimaticos: trocarSemDadoPorNull(parametros)
     };
   } catch (error) {
-    // Imprime o erro exato no terminal para sabermos se o problema é na NASA ou na base de dados
-    console.error("DETALHE DO ERRO NA NASA/PRISMA:", error.message);
-    if (error.response) {
-      console.error("Dados da resposta da NASA:", error.response.data);
-    }
-    throw new ErroHttp(500, "Não foi possível obter os dados meteorológicos da NASA no momento.");
+    // No log vai so a mensagem e o status, nunca o corpo que a NASA devolveu.
+    const status = error.response ? ` (status ${error.response.status})` : "";
+    console.error(`Falha ao consultar a NASA${status}: ${error.message}`);
+    // Falha de servico de fora e 502 (bad gateway), nao 500.
+    throw new ErroHttp(502, "Não foi possível obter os dados meteorológicos da NASA no momento.");
   }
 }
 

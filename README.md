@@ -413,6 +413,9 @@ Exigem token. Cada usuário vê só as próprias propriedades (veja [Quem vê o 
 | POST | `/api/propriedades` | Cadastra uma propriedade; o dono é o usuário logado (ADMIN ou PRODUTOR) | 201 |
 | PUT | `/api/propriedades/:id` | Edita os campos do cadastro (ADMIN ou PRODUTOR, só da própria) | 200 |
 | DELETE | `/api/propriedades/:id` | Exclusão lógica (status passa a `INATIVO`) (ADMIN ou PRODUTOR, só da própria) | 204 |
+| GET | `/api/propriedades/:id/clima` | Clima dos últimos 5 dias da NASA POWER (`T2M` e `PRECTOTCORR`) nas coordenadas da propriedade do usuário. Veja a nota abaixo | 200 |
+
+Sobre `/api/propriedades/:id/clima`: quando a NASA não tem dado de um dia (ela marca com `-999`), o valor vem `null` no lugar, com as mesmas chaves e datas; os outros valores não mudam. Se a NASA falhar (rede, timeout, status de erro ou resposta fora do formato), a rota responde **502** com `"Não foi possível obter os dados meteorológicos da NASA no momento."`. Propriedade de outra pessoa dá 404 e sem token dá 401. Latitude ou longitude `0` são válidas.
 
 Corpo do POST/PUT (todos obrigatórios; outros campos são ignorados):
 
