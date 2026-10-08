@@ -4,8 +4,11 @@ const { ErroHttp } = require("../middlewares/erros");
 const openMeteoService = require("./openMeteoService");
 const mercadoService = require("./mercadoService");
 const ibgeService = require("./ibgeService");
+const { PRODUTOS_ACEITOS } = require("../validators/mercadoValidator");
 
 const ERRO_NAO_ENCONTRADA = "Cultura não encontrada.";
+const AVISO_SEM_COTACAO = "Sem cotação da CONAB para esta cultura.";
+const AVISO_COTACAO_INDISPONIVEL = "Cotação de mercado indisponível no momento.";
 
 function erroPrisma(erro, codigo) {
   return erro instanceof Prisma.PrismaClientKnownRequestError && erro.code === codigo;
@@ -75,7 +78,24 @@ async function remover(id) {
   }
 }
 
-async function obterDetalhesCompletos(culturaId, latitude, longitude) {
+// Cotacao da CONAB para a cultura. O nome da cultura (sem acento, em maiusculas) precisa ser um dos produtos
+// aceitos pelo mercado; se nao for, a consulta nem e feita. Se a consulta falhar (503 ou qualquer erro), a
+// cotacao vem null com um aviso: o resto dos detalhes continua valendo. Nunca se inventa preco.
+// No log vai so a mensagem curta, nunca o objeto de erro inteiro.
+async function obterCotacao(nomeCultura, uf) {
+  const produto = mercadoService.semAcento(nomeCultura);
+  if (!PRODUTOS_ACEITOS.includes(produto)) {
+    return { cotacaoMercado: null, avisoMercado: AVISO_SEM_COTACAO };
+  }
+  try {
+    return { cotacaoMercado: await mercadoService.consultarPrecos({ produto, uf, limite: 5 }) };
+  } catch (erro) {
+    console.error(`Cotação da CONAB indisponível para ${produto}: ${erro.message}`);
+    return { cotacaoMercado: null, avisoMercado: AVISO_COTACAO_INDISPONIVEL };
+  }
+}
+
+async function obterDetalhesCompletos(culturaId, latitude, longitude, uf = "PE") {
   const cultura = await prisma.cultura.findUnique({
     where: { id: Number(culturaId) },
   });
@@ -93,8 +113,8 @@ async function obterDetalhesCompletos(culturaId, latitude, longitude) {
     clima.umidadeAtual < Number(cultura.umidadeMin) ||
     clima.umidadeAtual > Number(cultura.umidadeMax);
 
-  // 2. Preços Reais (Mercado Livre API)
-  const mercado = await mercadoService.obterPrecosReais(cultura.nome);
+  // 2. Cotação de mercado (CONAB); se faltar, o resto da resposta segue normal
+  const { cotacaoMercado, avisoMercado } = await obterCotacao(cultura.nome, uf);
 
   // 3. Estatísticas (IBGE Nacional)
   const estatisticas = await ibgeService.obterEstatisticasNacionais();
@@ -106,8 +126,10 @@ async function obterDetalhesCompletos(culturaId, latitude, longitude) {
       temperaturaForaDoRango: alertaTemperatura,
       umidadeForaDoRango: alertaUmidade,
     },
-    cotacaoMercado: mercado,
-    estatisticasAgricolas: estatisticas
+    cotacaoMercado,
+    estatisticasAgricolas: estatisticas,
+    // So aparece quando nao ha cotacao.
+    ...(avisoMercado ? { avisoMercado } : {}),
   };
 }
 

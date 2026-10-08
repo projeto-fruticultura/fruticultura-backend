@@ -3,7 +3,6 @@ const mercadoController = require('../controllers/mercadoController');
 
 const router = Router();
 
-router.get('/', mercadoController.listarPrecos);  
-router.post('/', mercadoController.listarPrecos); 
+router.get('/', mercadoController.listarPrecos);
 
 module.exports = router;

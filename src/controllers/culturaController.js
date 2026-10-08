@@ -1,5 +1,5 @@
 const culturaService = require("../services/culturaService");
-const { validarCultura, validarCoordenadas, validarId } = require("../validators/culturaValidator");
+const { validarCultura, validarCoordenadas, validarUf, validarId } = require("../validators/culturaValidator");
 
 // No Express 5, erro lancado em funcao async ja vai para o middleware de erro,
 // por isso nao ha try/catch aqui.
@@ -33,7 +33,8 @@ async function remover(req, res) {
 async function detalhes(req, res) {
   const id = validarId(req.params.id);
   const { latitude, longitude } = validarCoordenadas(req.query);
-  res.status(200).json(await culturaService.obterDetalhesCompletos(id, latitude, longitude));
+  const uf = validarUf(req.query);
+  res.status(200).json(await culturaService.obterDetalhesCompletos(id, latitude, longitude, uf));
 }
 
 module.exports = { listar, buscarPorId, criar, atualizar, remover, detalhes };

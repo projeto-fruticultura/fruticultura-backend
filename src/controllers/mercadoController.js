@@ -3,9 +3,7 @@ const { validarFiltrosPrecos } = require('../validators/mercadoValidator');
 
 async function listarPrecos(req, res, next) {
   try {
-    // Se for GET usa req.query, se for POST usa req.body
-    const dadosOrigem = req.method === 'GET' ? req.query : req.body;
-    const filtros = validarFiltrosPrecos(dadosOrigem);
+    const filtros = validarFiltrosPrecos(req.query);
     
     const resultado = await mercadoService.consultarPrecos(filtros);
     return res.status(200).json(resultado);
