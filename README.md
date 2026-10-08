@@ -477,7 +477,7 @@ A resposta traz `cultura`, `condicoesAtuais` (clima do Open-Meteo), `alertas` (`
 - **Que cultura tem cotação:** só a cultura cujo **nome** (sem acento e sem diferença de maiúscula) seja `UVA`, `MANGA`, `BANANA`, `GOIABA` ou `MELAO`. "Melão" vale; "Uva Itália" **não** (cadastre a cultura como "Uva" e ponha a variedade no campo `variedade`).
 - **Sem cotação:** a rota continua respondendo 200 com o resto, `cotacaoMercado: null` e o `avisoMercado`: "Sem cotação da CONAB para esta cultura." (nome fora da lista, e a CONAB nem é consultada) ou "Cotação de mercado indisponível no momento." (a consulta à CONAB falhou).
 - **Clima:** `condicoesAtuais` vem do bloco `current` do Open-Meteo (valores de agora; temperatura em °C e vento em km/h, como antes). Se o Open-Meteo falhar, demorar mais de 8 s ou responder fora do formato, a rota continua respondendo 200 com `condicoesAtuais: null`, `alertas: null` e o `avisoClima`: "Clima atual indisponível no momento." O resto (`cultura`, cotação e IBGE) segue normal.
-- **Outras falhas:** se o IBGE falhar, `estatisticasAgricolas` traz `{ "erro": "Falha ao obter estatísticas do IBGE." }` e a rota responde 200.
+- **IBGE:** se o IBGE não tiver dado para o período (ele manda `".."`, `"-"`, `"X"` etc.), `estatisticasAgricolas` traz `valor: null` e `aviso: "Dado do IBGE indisponível para este período."`, mantendo `indicador` e `anoReferencia`. Se a chamada falhar ou passar de 8 s, traz `{ "erro": "Falha ao obter estatísticas do IBGE." }`. Nos dois casos a rota responde 200.
 - O primeiro pedido, com o cache da CONAB ainda frio, leva alguns segundos (a menos que `CONAB_AQUECER_AO_INICIAR=true`).
 
 ### Endpoints prontos: Preços de mercado (CONAB)
