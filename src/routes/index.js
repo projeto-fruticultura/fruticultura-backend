@@ -4,6 +4,7 @@ const propriedadeRoutes = require('./propriedadeRoutes');
 const sensorRoutes = require('./sensorRoutes');
 const loteRoutes = require('./loteRoutes');
 const leituraRoutes = require('./leituraRoutes');
+const logisticaRoutes = require('./logisticaRoutes');
 const mercadoRoutes = require('./mercadoRoutes.js'); // Importa aqui
 const authRoutes = require('./authRoutes');
 const usuarioRoutes = require('./usuarioRoutes');
@@ -21,6 +22,8 @@ routes.use('/sensores', sensorRoutes);
 routes.use('/lotes', loteRoutes);
 // So consulta; exige login e mostra so as leituras dos sensores das propriedades do usuario.
 routes.use('/leituras', leituraRoutes);
+// Exige login; mostra e altera so as rotas logisticas das propriedades do usuario (exclusao logica no DELETE).
+routes.use('/logistica', logisticaRoutes);
 routes.use('/precos', mercadoRoutes); // <--- Tem de estar assim: /precos
 // Login publico; /me e /logout exigem token.
 // /propriedades, /sensores, /lotes e /leituras tambem exigem token; /culturas e /precos continuam abertas por enquanto.
