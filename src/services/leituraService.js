@@ -104,5 +104,5 @@ async function listar(usuario, { sensorId, loteId, propriedadeId, de, ate, pagin
   };
 }
 
-// escopoLeitura e garantirSensorVisivel tambem sao usados pelo dashboardService: a regra de dono e uma so.
-module.exports = { sincronizarLeituras, listar, escopoLeitura, garantirSensorVisivel };
+// escopoLeitura, garantirSensorVisivel e garantirLoteVisivel tambem sao usados pelo dashboardService: a regra de dono e uma so.
+module.exports = { sincronizarLeituras, listar, escopoLeitura, garantirSensorVisivel, garantirLoteVisivel };
