@@ -758,16 +758,22 @@ Exigem token. Mostram só o que pertence ao usuário logado (veja [Quem vê o qu
 
 | Verbo | Rota | O que faz | Sucesso |
 |---|---|---|---|
-| GET | `/api/dashboard/resumo?propriedadeId=&culturaId=&sensorId=` | O "agora": a última leitura e o total de alertas | 200 |
-| GET | `/api/dashboard/medias?agrupar=&propriedadeId=&culturaId=&sensorId=&de=&ate=` | Média de temperatura e de umidade por hora ou por dia | 200 |
+| GET | `/api/dashboard/resumo?propriedadeId=&loteId=&culturaId=&sensorId=` | O "agora": a última leitura, o total de alertas, os sensores ativos, o total de leituras e as médias das últimas 24 h | 200 |
+| GET | `/api/dashboard/medias?agrupar=&propriedadeId=&loteId=&culturaId=&sensorId=&de=&ate=` | Média de temperatura e de umidade por hora ou por dia | 200 |
 
-Os filtros `propriedadeId`, `culturaId` e `sensorId` são opcionais e precisam ser inteiros positivos (senão, 400 com `campos`). Um `propriedadeId` ou `culturaId` de outra pessoa (ou que não existe) não dá erro: a resposta vem vazia. Já um `sensorId` de outra pessoa e um `sensorId` que não existe dão o **mesmo 404** "Sensor não encontrado.". Qualquer parâmetro que a rota não conhece é ignorado.
+Os filtros `propriedadeId`, `loteId`, `culturaId` e `sensorId` são opcionais e precisam ser inteiros positivos (senão, 400 com `campos`). Um `propriedadeId` ou `culturaId` de outra pessoa (ou que não existe) não dá erro: a resposta vem vazia. Já um `sensorId` ou `loteId` de outra pessoa e um que não existe dão o **mesmo 404** ("Sensor não encontrado." ou "Lote não encontrado.", o mesmo de `GET /api/leituras`). TECNICO, que não vê nada, também recebe 404 quando manda `sensorId` ou `loteId`. Qualquer parâmetro que a rota não conhece é ignorado.
+
+**Atenção ao dia:** no dashboard, uma data sem hora (`de` e `ate` do `/medias`) vale o **dia em Recife**; em `GET /api/leituras`, vale o **dia em UTC**.
 
 **`GET /api/dashboard/resumo`**
 
 - Só vale o "agora": os parâmetros `de`, `ate` e `agrupar` são **ignorados** aqui.
 - `ultimaLeitura` é a leitura mais recente, e só vem de sensor `ATIVO`, de lote `ATIVO` e de propriedade `ATIVA` (o mesmo conjunto dos alertas). Assim, o "agora" nunca vem de algo desativado. Sem nenhuma leitura, ou com um `sensorId` de sensor inativo, vem `null` (a resposta continua 200).
 - `totalAlertas` é o mesmo número que `GET /api/alertas` devolve para o mesmo escopo e filtros (calculado a partir da última leitura de cada sensor, igual ao `/api/alertas`).
+- `sensoresAtivos` é quantos sensores estão `ATIVO`, em lote `ATIVO` e propriedade `ATIVA` (o mesmo conjunto de `ultimaLeitura`), respeitando o escopo do dono e os filtros.
+- `totalLeituras` é o total de leituras de **todo o histórico**, no mesmo conjunto de `GET /api/leituras` (inclui leituras de sensor e lote inativos; só propriedade inativa esconde). Com os mesmos filtros, é igual ao `paginacao.total` de `/api/leituras`.
+- `temperaturaMedia` e `umidadeMedia` são as médias das **últimas 24 horas a partir de agora**, no mesmo conjunto "ativos" de `ultimaLeitura`, com 2 casas decimais. `janelaMediasHoras` vem sempre `24`, para o front escrever "últimas 24h". **Sem nenhuma leitura na janela, as duas médias vêm `null`** (nunca 0).
+- **Por que os números podem não bater:** `totalLeituras` conta o histórico (inclui inativos), enquanto `sensoresAtivos`, as médias e `ultimaLeitura` só olham o "agora" (só ativos). Filtrando por um sensor ou lote inativo, a resposta é 200 com `ultimaLeitura: null`, `sensoresAtivos: 0` e médias `null`, mas `totalLeituras` maior que zero. As médias de 24 h do resumo também podem diferir das de `/medias`, que incluem inativos.
 
 Exemplo de resposta:
 
@@ -780,7 +786,12 @@ Exemplo de resposta:
     "umidade": 50,
     "dataHoraLeitura": "2026-10-08T14:05:00.000Z"
   },
-  "totalAlertas": 1
+  "totalAlertas": 1,
+  "sensoresAtivos": 4,
+  "totalLeituras": 1520,
+  "temperaturaMedia": 28.73,
+  "umidadeMedia": 63.1,
+  "janelaMediasHoras": 24
 }
 ```
 

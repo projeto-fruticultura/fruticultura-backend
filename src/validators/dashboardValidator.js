@@ -44,7 +44,7 @@ function lerLimite(valor, fimDoDia) {
 
 function lerIds(query, campos) {
   const filtros = {};
-  for (const nome of ["propriedadeId", "culturaId", "sensorId"]) {
+  for (const nome of ["propriedadeId", "loteId", "culturaId", "sensorId"]) {
     if (query[nome] === undefined) continue;
     const numero = lerInteiro(query[nome], 1, MAIOR_INT);
     if (numero === null) campos[nome] = `${nome} deve ser um número inteiro positivo.`;
@@ -53,7 +53,7 @@ function lerIds(query, campos) {
   return filtros;
 }
 
-// GET /dashboard/resumo: mostra o "agora", entao so os tres filtros de id valem.
+// GET /dashboard/resumo: mostra o "agora", entao so os quatro filtros de id valem.
 // Qualquer outro parametro (inclusive de e ate) e ignorado.
 function validarFiltrosResumo(query) {
   const campos = {};

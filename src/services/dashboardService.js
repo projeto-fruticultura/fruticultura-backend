@@ -1,32 +1,47 @@
 const { Prisma } = require("@prisma/client");
 const prisma = require("../config/prisma");
 const { filtroSensor } = require("./escopoDono");
-const { escopoLeitura, garantirSensorVisivel } = require("./leituraService");
+const { escopoLeitura, garantirSensorVisivel, garantirLoteVisivel } = require("./leituraService");
 const alertaService = require("./alertaService");
 
-// Resumo do "agora": a leitura mais recente e quantos alertas existem, no escopo do usuario.
-// O dono vem sempre do token (usuario), nunca da query. sensorId de outra pessoa e sensorId inexistente
-// dao o mesmo 404; propriedadeId e culturaId fora do escopo (ou inexistentes) dao resposta vazia, sem erro.
-async function resumo(usuario, { propriedadeId, culturaId, sensorId } = {}) {
-  if (sensorId) await garantirSensorVisivel(sensorId, usuario);
+// Janela das medias do resumo: as ultimas 24 horas a partir de agora.
+const JANELA_MEDIAS_HORAS = 24;
 
+// Filtros de id (opcionais) como condicoes sobre o SENSOR; o resumo e o medias usam as mesmas.
+// Para filtrar leituras, basta embrulhar cada uma em { sensor: ... }.
+function filtrosDeSensor({ sensorId, loteId, propriedadeId, culturaId }) {
   const filtros = [];
-  if (sensorId) filtros.push({ sensorId });
-  if (propriedadeId) filtros.push({ sensor: { lote: { propriedadeId } } });
-  if (culturaId) filtros.push({ sensor: { lote: { culturaId } } });
+  if (sensorId) filtros.push({ id: sensorId });
+  if (loteId) filtros.push({ loteId });
+  if (propriedadeId) filtros.push({ lote: { propriedadeId } });
+  if (culturaId) filtros.push({ lote: { culturaId } });
+  return filtros;
+}
 
-  const [ultima, alertas] = await Promise.all([
+// O "agora" so vem de sensor, lote e propriedade ATIVOS (o mesmo conjunto dos alertas):
+// algo desativado nao pode aparecer como a situacao de hoje. (O historico continua incluindo os inativos.)
+const SENSOR_ATIVO = { status: "ATIVO", lote: { status: "ATIVO", propriedade: { status: "ATIVO" } } };
+
+const arredondar = (numero) => Math.round(Number(numero) * 100) / 100;
+
+// Resumo do "agora": a leitura mais recente, quantos alertas existem, quantos sensores ativos, o total de leituras
+// e as medias das ultimas 24 h, no escopo do usuario.
+// O dono vem sempre do token (usuario), nunca da query. sensorId e loteId de outra pessoa e inexistentes
+// dao o mesmo 404; propriedadeId e culturaId fora do escopo (ou inexistentes) dao resposta vazia, sem erro.
+async function resumo(usuario, { propriedadeId, loteId, culturaId, sensorId } = {}) {
+  if (sensorId) await garantirSensorVisivel(sensorId, usuario);
+  if (loteId) await garantirLoteVisivel(loteId, usuario);
+
+  const filtrosSensor = filtrosDeSensor({ sensorId, loteId, propriedadeId, culturaId });
+  const filtrosLeitura = filtrosSensor.map((filtro) => ({ sensor: filtro }));
+
+  // Janela das medias: de 24 h atras ate agora (leitura com data no futuro nao entra).
+  const ate = new Date();
+  const de = new Date(ate.getTime() - JANELA_MEDIAS_HORAS * 60 * 60 * 1000);
+
+  const [ultima, alertas, sensoresAtivos, totalLeituras, medias] = await Promise.all([
     prisma.leitura.findFirst({
-      where: {
-        AND: [
-          ...escopoLeitura(usuario),
-          // O "agora" so vem de sensor, lote e propriedade ATIVOS (o mesmo conjunto dos alertas):
-          // leitura de algo desativado nao pode aparecer como a situacao de hoje.
-          // (O historico, em /medias, continua incluindo os inativos.)
-          { sensor: { status: "ATIVO", lote: { status: "ATIVO", propriedade: { status: "ATIVO" } } } },
-          ...filtros,
-        ],
-      },
+      where: { AND: [...escopoLeitura(usuario), { sensor: SENSOR_ATIVO }, ...filtrosLeitura] },
       // Mais recente primeiro; o id desempata leituras com o mesmo instante.
       orderBy: [{ dataHoraLeitura: "desc" }, { id: "desc" }],
       select: {
@@ -37,7 +52,27 @@ async function resumo(usuario, { propriedadeId, culturaId, sensorId } = {}) {
         sensor: { select: { codigo: true } },
       },
     }),
-    alertaService.listar(usuario, { propriedadeId, culturaId, sensorId }),
+    alertaService.listar(usuario, { propriedadeId, loteId, culturaId, sensorId }),
+    // Mesmo conjunto "ativos" da ultima leitura.
+    prisma.sensor.count({
+      where: {
+        AND: [filtroSensor(usuario), { lote: { propriedade: { status: "ATIVO" } } }, SENSOR_ATIVO, ...filtrosSensor],
+      },
+    }),
+    // Historico inteiro, o MESMO conjunto do GET /leituras (inclui sensor e lote inativos): bate com paginacao.total.
+    prisma.leitura.count({ where: { AND: [...escopoLeitura(usuario), ...filtrosLeitura] } }),
+    // Medias das ultimas 24 h no conjunto "ativos". Sem leitura na janela, _avg vem null (nunca 0).
+    prisma.leitura.aggregate({
+      where: {
+        AND: [
+          ...escopoLeitura(usuario),
+          { sensor: SENSOR_ATIVO },
+          ...filtrosLeitura,
+          { dataHoraLeitura: { gte: de, lte: ate } },
+        ],
+      },
+      _avg: { temperatura: true, umidade: true },
+    }),
   ]);
 
   return {
@@ -51,12 +86,18 @@ async function resumo(usuario, { propriedadeId, culturaId, sensorId } = {}) {
         }
       : null,
     totalAlertas: alertas.total,
+    sensoresAtivos,
+    totalLeituras,
+    temperaturaMedia: medias._avg.temperatura === null ? null : arredondar(medias._avg.temperatura),
+    umidadeMedia: medias._avg.umidade === null ? null : arredondar(medias._avg.umidade),
+    janelaMediasHoras: JANELA_MEDIAS_HORAS,
   };
 }
 
 // Medias de temperatura e umidade por hora ou por dia (em Recife). "filtros" ja vem validado.
-async function medias(usuario, { agrupar, unidade, propriedadeId, culturaId, sensorId, de, ate }) {
+async function medias(usuario, { agrupar, unidade, propriedadeId, loteId, culturaId, sensorId, de, ate }) {
   if (sensorId) await garantirSensorVisivel(sensorId, usuario);
+  if (loteId) await garantirLoteVisivel(loteId, usuario);
 
   const resposta = (dados) => ({
     agrupar,
@@ -68,10 +109,7 @@ async function medias(usuario, { agrupar, unidade, propriedadeId, culturaId, sen
 
   // 1) Descobre os sensores visiveis com o Prisma: a regra de dono fica so em escopoDono, nunca copiada para SQL.
   // Mesmo escopo do GET /leituras: nao filtra status do sensor nem do lote, para o historico continuar visivel.
-  const filtros = [];
-  if (sensorId) filtros.push({ id: sensorId });
-  if (propriedadeId) filtros.push({ lote: { propriedadeId } });
-  if (culturaId) filtros.push({ lote: { culturaId } });
+  const filtros = filtrosDeSensor({ sensorId, loteId, propriedadeId, culturaId });
 
   const sensores = await prisma.sensor.findMany({
     where: { AND: [filtroSensor(usuario), { lote: { propriedade: { status: "ATIVO" } } }, ...filtros] },
@@ -99,8 +137,6 @@ async function medias(usuario, { agrupar, unidade, propriedadeId, culturaId, sen
     GROUP BY 1
     ORDER BY 1 ASC
   `);
-
-  const arredondar = (numero) => Math.round(Number(numero) * 100) / 100;
 
   return resposta(
     linhas.map((linha) => ({
