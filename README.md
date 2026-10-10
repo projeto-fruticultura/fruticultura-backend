@@ -47,6 +47,8 @@ Wokwi/ESP32 → Backend
 Backend ↔ NASA POWER API
 ```
 
+Diagrama completo da arquitetura (sensor, ThingSpeak, API e banco): [docs/arquitetura.md](docs/arquitetura.md).
+
 ## Tecnologias
 
 - Node.js;
