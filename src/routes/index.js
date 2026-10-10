@@ -32,7 +32,7 @@ routes.use('/alertas', alertaRoutes);
 routes.use('/dashboard', dashboardRoutes);
 routes.use('/precos', mercadoRoutes); // <--- Tem de estar assim: /precos
 // Login publico; /me e /logout exigem token.
-// /propriedades, /sensores, /lotes, /leituras, /logistica, /alertas e /dashboard tambem exigem token; /culturas e /precos continuam abertas por enquanto.
+// /propriedades, /sensores, /lotes, /leituras, /logistica, /alertas e /dashboard tambem exigem token. /culturas: GET aberto, POST/PUT/DELETE so ADMIN. /precos continua aberta por enquanto.
 routes.use('/auth', authRoutes);
 // So ADMIN logado cria usuarios (a protecao fica no proprio usuarioRoutes).
 routes.use('/usuarios', usuarioRoutes);
