@@ -7,6 +7,8 @@ const { rotaNaoEncontrada, tratarErros } = require("./middlewares/erros");
 const app = express();
 
 app.disable("x-powered-by");
+// Atras do proxy do Render, confia em 3 saltos para enxergar o IP real de cada usuario.
+app.set("trust proxy", 3);
 app.use(cors({ origin: process.env.CORS_ORIGIN || false }));
 app.use(express.json({ limit: "100kb" }));
 
