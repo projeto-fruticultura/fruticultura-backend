@@ -154,6 +154,8 @@ PUT    /api/culturas/:id
 DELETE /api/culturas/:id
 ```
 
+Os `GET` de culturas são abertos (sem login). `POST`, `PUT` e `DELETE` exigem login com perfil ADMIN.
+
 ### Lotes
 
 ```text
@@ -234,7 +236,7 @@ A NASA POWER é uma fonte meteorológica externa. Ela não substitui as leituras
 
 ## Autenticação e autorização
 
-A autenticação usa JWT e o login já está pronto (veja [Endpoints prontos: Autenticação e usuários](#endpoints-prontos-autenticação-e-usuários)). Exigem token: `GET /api/auth/me`, `POST /api/auth/logout`, `POST /api/usuarios`, `/api/propriedades`, `/api/sensores`, `/api/lotes`, `/api/leituras`, `/api/logistica`, `/api/alertas` e `/api/dashboard`. Cada usuário vê só o que é dele (veja [Quem vê o quê](#quem-vê-o-quê-propriedades-sensores-e-lotes)). `/api/culturas` e `/api/precos` continuam abertas por enquanto.
+A autenticação usa JWT e o login já está pronto (veja [Endpoints prontos: Autenticação e usuários](#endpoints-prontos-autenticação-e-usuários)). Exigem token: `GET /api/auth/me`, `POST /api/auth/logout`, `POST /api/usuarios`, `/api/propriedades`, `/api/sensores`, `/api/lotes`, `/api/leituras`, `/api/logistica`, `/api/alertas` e `/api/dashboard`. Cada usuário vê só o que é dele (veja [Quem vê o quê](#quem-vê-o-quê-propriedades-sensores-e-lotes)). Em `/api/culturas`, só `POST`, `PUT` e `DELETE` exigem token (perfil ADMIN); os `GET` de culturas e `/api/precos` continuam abertos por enquanto.
 
 Fluxo planejado:
 
@@ -439,9 +441,11 @@ Erros respondem em JSON no formato `{ "erro": "mensagem" }`. Validação inváli
 | GET | `/api/culturas` | Lista as culturas por nome | 200 |
 | GET | `/api/culturas/:id` | Detalhe de uma cultura | 200 |
 | GET | `/api/culturas/:id/detalhes?lat=&lon=&uf=` | Cultura com clima atual nas coordenadas, alertas de faixa, cotação de mercado da CONAB e estatísticas do IBGE. `lat` e `lon` são obrigatórios (400 se faltarem ou estiverem fora da faixa). `uf` é opcional (padrão `PE`; inválida: 400). Veja [Detalhes da cultura](#detalhes-da-cultura-get-apiculturasiddetalhes) | 200 |
-| POST | `/api/culturas` | Cadastra uma cultura | 201 |
-| PUT | `/api/culturas/:id` | Edita os campos do cadastro | 200 |
-| DELETE | `/api/culturas/:id` | Apaga a cultura. Se ela tem lotes, não apaga e responde 409 | 204 |
+| POST | `/api/culturas` | Cadastra uma cultura (só ADMIN) | 201 |
+| PUT | `/api/culturas/:id` | Edita os campos do cadastro (só ADMIN) | 200 |
+| DELETE | `/api/culturas/:id` | Apaga a cultura (só ADMIN). Se ela tem lotes, não apaga e responde 409 | 204 |
+
+**Quem pode o quê em Culturas:** os `GET` (lista, por id e `/detalhes`) são **abertos, sem login**. `POST`, `PUT` e `DELETE` exigem login com perfil **ADMIN**: sem token, 401; com PRODUTOR ou TECNICO, 403. O login é conferido antes de qualquer validação, então uma requisição sem token recebe 401 mesmo com corpo ou id inválido. Motivo: a cultura é um catálogo compartilhado, e mudar as faixas de temperatura e umidade muda os alertas de todos os produtores.
 
 Corpo do POST/PUT (`variedade` e `descricao` são opcionais; mínimo não pode ser maior que máximo; outros campos são ignorados):
 
@@ -902,7 +906,7 @@ Regras: `nome` com 1 a 150 caracteres; `email` em formato válido, até 254 cara
 | 409 `"E-mail já cadastrado."` | `POST /api/usuarios` com e-mail que já existe (sem diferenciar maiúsculas). |
 | 429 | Muitas tentativas de login com falha. |
 
-> **`/api/culturas` e `/api/precos` continuam abertas:** ainda não exigem login (a tela de Culturas do front chama sem token). A proteção delas entra numa próxima tarefa. `/api/auth/esqueci-senha` e `/api/auth/redefinir-senha` ainda não existem (respondem 404).
+> **`/api/precos` e os `GET` de `/api/culturas` continuam abertos:** ainda não exigem login (a tela de Culturas do front lê sem token). A proteção de `/api/precos` entra numa próxima tarefa. `/api/auth/esqueci-senha` e `/api/auth/redefinir-senha` ainda não existem (respondem 404).
 
 ## Regras do banco
 
