@@ -6,6 +6,10 @@ const { validarId } = require("./propriedadeValidator");
 
 const NOME_MAXIMO = 150;
 const SENHA_MINIMO_BYTES = 8;
+// Limite por chamada do vinculo tecnico/propriedade: um tecnico com mais que isso e irreal no MVP,
+// e o limite evita uma consulta enorme.
+const PROPRIEDADE_IDS_MAXIMO = 100;
+const MAIOR_ID = 2147483647; // Int do Postgres
 const PERFIS = ["PRODUTOR", "TECNICO", "ADMIN"];
 // Formato simples (algo@algo.algo): confirma que parece um e-mail, sem tentar cobrir a RFC inteira.
 const FORMATO_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -73,4 +77,25 @@ function validarUsuario(corpo, modo = "criar") {
   return Object.fromEntries(Object.entries(dados).filter(([, valor]) => valor !== undefined));
 }
 
-module.exports = { validarUsuario, validarId };
+// Valida o corpo do PUT /usuarios/:id/propriedades e devolve os ids sem repetidos.
+// So numeros inteiros positivos valem (texto como "1" e recusado), e o limite conta depois de tirar os repetidos.
+function validarPropriedadeIds(corpo) {
+  if (!corpo || typeof corpo !== "object" || Array.isArray(corpo)) {
+    throw new ErroHttp(400, "Envie os dados em JSON.");
+  }
+
+  const { propriedadeIds } = corpo;
+  let erro = null;
+  if (propriedadeIds === undefined || propriedadeIds === null) erro = "propriedadeIds é obrigatório.";
+  else if (!Array.isArray(propriedadeIds)) erro = "propriedadeIds deve ser uma lista de ids.";
+  else if (!propriedadeIds.every((id) => Number.isInteger(id) && id >= 1 && id <= MAIOR_ID)) {
+    erro = "propriedadeIds deve conter só números inteiros positivos.";
+  } else if (new Set(propriedadeIds).size > PROPRIEDADE_IDS_MAXIMO) {
+    erro = `propriedadeIds deve ter no máximo ${PROPRIEDADE_IDS_MAXIMO} ids.`;
+  }
+  if (erro) throw new ErroHttp(400, "Dados inválidos.", { propriedadeIds: erro });
+
+  return [...new Set(propriedadeIds)];
+}
+
+module.exports = { validarUsuario, validarId, validarPropriedadeIds };

@@ -1,18 +1,21 @@
 // Regra unica de "quem ve o que": propriedades, lotes e sensores usam estes filtros
-// no where do Prisma. Mudar a regra (ex.: ligar tecnico a propriedades) e mexer so aqui.
+// no where do Prisma. Mudar a regra de visibilidade e mexer so aqui.
 // Uso: where: { id, status: "ATIVO", AND: [filtroPropriedade(usuario)] }
 // Sempre dentro de AND (e nao com ...): assim o filtro nunca sobrescreve outra chave, como o id.
 
 // Filtro que nunca casa com nenhuma linha: lista vazia e 404 por id.
 const NUNCA_CASA = { id: { in: [] } };
 
-// ADMIN ve tudo; PRODUTOR ve so as proprias propriedades.
-// Negar por padrao: TECNICO (ainda sem vinculo com propriedades no banco) e qualquer
-// perfil desconhecido nao veem nada. Um perfil novo comeca sem acesso, nunca com acesso por engano.
+// ADMIN ve tudo; PRODUTOR ve so as proprias propriedades; TECNICO ve so as vinculadas a ele
+// (tabela TecnicoPropriedade). O perfil usado e o atual do banco: se o TECNICO virar PRODUTOR,
+// os vinculos continuam guardados mas deixam de valer.
+// Negar por padrao: qualquer perfil desconhecido nao ve nada. Um perfil novo comeca sem acesso,
+// nunca com acesso por engano.
 function filtroPropriedade(usuario) {
   if (!usuario) return NUNCA_CASA;
   if (usuario.perfil === "ADMIN") return {};
   if (usuario.perfil === "PRODUTOR") return { usuarioId: usuario.id };
+  if (usuario.perfil === "TECNICO") return { tecnicos: { some: { usuarioId: usuario.id } } };
   return NUNCA_CASA;
 }
 
