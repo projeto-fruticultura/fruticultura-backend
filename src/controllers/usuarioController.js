@@ -13,10 +13,16 @@ async function criar(req, res) {
   res.status(201).json(await usuarioService.criar(dados));
 }
 
+async function atualizar(req, res) {
+  const id = validarId(req.params.id);
+  const dados = validarUsuario(req.body, "atualizar");
+  res.status(200).json(await usuarioService.atualizar(id, dados, req.usuario));
+}
+
 async function remover(req, res) {
   const id = validarId(req.params.id);
   await usuarioService.inativar(id, req.usuario);
   res.status(204).end();
 }
 
-module.exports = { listar, criar, remover };
+module.exports = { listar, criar, atualizar, remover };
