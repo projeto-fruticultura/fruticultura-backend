@@ -116,7 +116,7 @@ prisma/
 
 ## Endpoints planejados
 
-Os endpoints abaixo são uma proposta inicial e poderão ser ajustados. Já estão prontos: Propriedades, Culturas, Sensores, Lotes, Logística, `GET /api/leituras`, `GET /api/alertas`, `GET /api/dashboard/resumo`, `GET /api/dashboard/medias`, `POST /api/auth/login`, `GET /api/auth/me`, `POST /api/auth/logout`, `GET /api/usuarios`, `POST /api/usuarios`, `PUT /api/usuarios/:id` e `DELETE /api/usuarios/:id` (veja [Endpoints prontos: Autenticação e usuários](#endpoints-prontos-autenticação-e-usuários)).
+Os endpoints abaixo são uma proposta inicial e poderão ser ajustados. Já estão prontos: Propriedades, Culturas, Sensores, Lotes, Logística, `GET /api/leituras`, `GET /api/alertas`, `GET /api/dashboard/resumo`, `GET /api/dashboard/medias`, `POST /api/auth/login`, `GET /api/auth/me`, `POST /api/auth/logout`, `GET /api/usuarios`, `POST /api/usuarios`, `PUT /api/usuarios/:id`, `DELETE /api/usuarios/:id`, `GET /api/usuarios/:id/propriedades` e `PUT /api/usuarios/:id/propriedades` (veja [Endpoints prontos: Autenticação e usuários](#endpoints-prontos-autenticação-e-usuários)).
 
 ### Autenticação
 
@@ -134,6 +134,8 @@ POST   /api/usuarios
 GET    /api/usuarios/:id
 PUT    /api/usuarios/:id
 DELETE /api/usuarios/:id
+GET    /api/usuarios/:id/propriedades
+PUT    /api/usuarios/:id/propriedades
 ```
 
 ### Propriedades
@@ -238,7 +240,7 @@ A NASA POWER é uma fonte meteorológica externa. Ela não substitui as leituras
 
 ## Autenticação e autorização
 
-A autenticação usa JWT e o login já está pronto (veja [Endpoints prontos: Autenticação e usuários](#endpoints-prontos-autenticação-e-usuários)). Exigem token: `GET /api/auth/me`, `POST /api/auth/logout`, `POST /api/usuarios`, `/api/propriedades`, `/api/sensores`, `/api/lotes`, `/api/leituras`, `/api/logistica`, `/api/alertas` e `/api/dashboard`. Cada usuário vê só o que é dele (veja [Quem vê o quê](#quem-vê-o-quê-propriedades-sensores-e-lotes)). Em `/api/culturas`, só `POST`, `PUT` e `DELETE` exigem token (perfil ADMIN); os `GET` de culturas e `/api/precos` continuam abertos por enquanto.
+A autenticação usa JWT e o login já está pronto (veja [Endpoints prontos: Autenticação e usuários](#endpoints-prontos-autenticação-e-usuários)). Exigem token: `GET /api/auth/me`, `POST /api/auth/logout`, `/api/usuarios`, `/api/propriedades`, `/api/sensores`, `/api/lotes`, `/api/leituras`, `/api/logistica`, `/api/alertas` e `/api/dashboard`. Cada usuário vê só o que é dele; o técnico, só o das propriedades vinculadas a ele (veja [Quem vê o quê](#quem-vê-o-quê-propriedades-sensores-e-lotes)). Em `/api/culturas`, só `POST`, `PUT` e `DELETE` exigem token (perfil ADMIN); os `GET` de culturas e `/api/precos` continuam abertos por enquanto.
 
 Fluxo planejado:
 
@@ -712,7 +714,7 @@ Um lote `INATIVO` fica escondido de todos, **inclusive do ADMIN**: some da lista
 
 ### Endpoints prontos: Alertas
 
-Exigem token. Mostram só o que pertence ao usuário logado (veja [Quem vê o quê](#quem-vê-o-quê-propriedades-sensores-e-lotes)): ADMIN vê tudo, PRODUTOR só os sensores das próprias propriedades, e TECNICO recebe lista vazia.
+Exigem token. Mostram só o que pertence ao usuário logado (veja [Quem vê o quê](#quem-vê-o-quê-propriedades-sensores-e-lotes)): ADMIN vê tudo, PRODUTOR só os sensores das próprias propriedades, e TECNICO só os das propriedades vinculadas a ele (sem vínculo, lista vazia).
 
 | Verbo | Rota | O que faz | Sucesso |
 |---|---|---|---|
@@ -760,7 +762,7 @@ Por dentro: a última leitura de cada sensor é buscada com **uma consulta por s
 
 ### Endpoints prontos: Dashboard
 
-Exigem token. Mostram só o que pertence ao usuário logado (veja [Quem vê o quê](#quem-vê-o-quê-propriedades-sensores-e-lotes)): ADMIN vê tudo, PRODUTOR só os sensores das próprias propriedades, e TECNICO recebe resposta vazia. O dono vem sempre do token, nunca da query.
+Exigem token. Mostram só o que pertence ao usuário logado (veja [Quem vê o quê](#quem-vê-o-quê-propriedades-sensores-e-lotes)): ADMIN vê tudo, PRODUTOR só os sensores das próprias propriedades, e TECNICO só os das propriedades vinculadas a ele (sem vínculo, resposta vazia). O dono vem sempre do token, nunca da query.
 
 | Verbo | Rota | O que faz | Sucesso |
 |---|---|---|---|
@@ -848,8 +850,8 @@ Exemplo de resposta:
 |---|---|
 | `ADMIN` | Vê e mexe em tudo. |
 | `PRODUTOR` | Vê e mexe só no que é dele: as propriedades em que ele é o dono, e os lotes e sensores dessas propriedades. Um PRODUTOR novo, sem propriedades, recebe lista vazia. |
-| `TECNICO` | Não vê nada por enquanto (lista vazia; 404 por id; 403 ao criar, editar ou apagar), porque o banco ainda não liga técnico a propriedade. |
-| Outro perfil | Tratado como `TECNICO`: nega por padrão. |
+| `TECNICO` | Só **lê**, e só as propriedades vinculadas a ele (veja [Endpoints prontos: Autenticação e usuários](#endpoints-prontos-autenticação-e-usuários)), mais os lotes, sensores, leituras, alertas, dashboard e logística dessas propriedades. Sem vínculo: lista vazia e 404 por id. Criar, editar e apagar: 403. |
+| Outro perfil | Nega por padrão: não vê nada. |
 
 Regras:
 
@@ -857,6 +859,7 @@ Regras:
 - Acesso a um recurso de outra pessoa responde **404**, e não 403, para não revelar que o id existe.
 - Sem token: 401.
 - A regra de visibilidade fica num lugar só: `src/services/escopoDono.js`.
+- O perfil usado é o atual do banco. Se o técnico virar `PRODUTOR`, os vínculos são ignorados (ele passa a ver só as próprias propriedades); se voltar a `TECNICO`, valem de novo. Propriedade `INATIVO` continua escondida do técnico.
 - As propriedades que já existiam no banco pertencem a usuários ADMIN. Um PRODUTOR novo não as vê até cadastrar as dele.
 
 ### Endpoints prontos: Autenticação e usuários
@@ -870,6 +873,8 @@ Regras:
 | POST | `/api/usuarios` | token de ADMIN | Cria um usuário com perfil `PRODUTOR`, `TECNICO` ou `ADMIN` | 201 |
 | PUT | `/api/usuarios/:id` | token de ADMIN | Edita `nome`, `email` e `perfil` de um usuário (parcial: mande só o que mudou) | 200 |
 | DELETE | `/api/usuarios/:id` | token de ADMIN | Inativa o usuário (`status` vira `INATIVO`); a linha não é apagada | 204 |
+| GET | `/api/usuarios/:id/propriedades` | token de ADMIN | Lista as propriedades ATIVAS vinculadas a um técnico | 200 |
+| PUT | `/api/usuarios/:id/propriedades` | token de ADMIN | Substitui a lista de propriedades vinculadas a um técnico | 200 |
 
 Não existe cadastro público: só um ADMIN logado cria usuários, **inclusive outros ADMIN**. O primeiro ADMIN é o do seed (`SEED_ADMIN_EMAIL`). **Não abra essa rota**: se o `POST /api/usuarios` ficar sem login, qualquer pessoa poderia criar uma conta ADMIN.
 
@@ -910,15 +915,23 @@ Corpo do `PUT /api/usuarios/:id` (parcial: todos os campos são opcionais e o qu
 
 O `PUT` aceita só `nome`, `email` e `perfil`, com as mesmas regras do cadastro; `null` ou texto vazio em um campo enviado é erro 400. `id`, `status`, `senha` e outros campos enviados no corpo são **ignorados**: a senha não muda por aqui. A resposta é 200 com `id`, `nome`, `email`, `perfil` e `status` já atualizados, sem a senha. Mandar o e-mail que o próprio usuário já tem não dá 409. Usuário `INATIVO` pode ser editado e continua `INATIVO`. A troca de perfil vale na próxima requisição do usuário editado, mesmo com o token antigo, porque o perfil vem do banco. O ADMIN pode editar o próprio `nome` e `email`, mas não o próprio `perfil` (409; mandar o perfil que já tem passa), o que garante que sempre sobra pelo menos um ADMIN ativo.
 
+Vínculo do técnico com propriedades (só o ADMIN faz): o `TECNICO` enxerga, **só para leitura**, as propriedades vinculadas a ele e o que vem delas (lotes, sensores, leituras, alertas, dashboard e logística). Sem vínculo, ele recebe listas vazias e 404 por id. Corpo do `PUT /api/usuarios/:id/propriedades`:
+
+```json
+{ "propriedadeIds": [1, 2] }
+```
+
+O `PUT` **substitui tudo**: a lista enviada vira o conjunto inteiro. Quem não está nela é desvinculado, inclusive propriedade que ficou `INATIVO`; lista vazia desvincula tudo. Ids repetidos valem como um, e o máximo é 100 ids distintos. `propriedadeIds` é obrigatório e deve ser uma lista de números inteiros positivos (texto como `"1"` é recusado). Só vale para usuário com perfil `TECNICO` (outro perfil: 400); usuário `INATIVO` pode ser vinculado. É tudo ou nada: se um id for inválido, nada muda. A resposta do `PUT` e a do `GET` são a mesma lista de `{ id, nome, cidade, uf, status }`, ordenada por `nome`, só com propriedades `ATIVO` (a senha e o `usuarioId` nunca aparecem). Como o `PUT` substitui tudo, o front deve mandar os ids que o `GET` devolveu mais os novos. A mudança vale na próxima requisição do técnico, mesmo com o token antigo. Os vínculos continuam guardados se o usuário virar `PRODUTOR` ou `ADMIN` ou ficar `INATIVO`; nesses casos são só ignorados, e voltam a valer se ele voltar a ser `TECNICO`. Desvincular apaga a linha do vínculo: a tabela `TecnicoPropriedade` é só de ligação e não tem `status`.
+
 Regras: `nome` com 1 a 150 caracteres; `email` em formato válido, até 254 caracteres, gravado em minúsculas; `senha` de 8 a 72 bytes (o bcrypt ignora o que passa de 72); `perfil` `PRODUTOR`, `TECNICO` ou `ADMIN`.
 
 | Status | Quando |
 |---|---|
-| 400 | Dados inválidos, com `campos` (uma mensagem por campo). No `PUT` e no `DELETE /api/usuarios/:id`, `:id` que não é um inteiro positivo. |
+| 400 | Dados inválidos, com `campos` (uma mensagem por campo). No `PUT` e no `DELETE /api/usuarios/:id` (e nas rotas `/propriedades`), `:id` que não é um inteiro positivo. Nas rotas `/propriedades`, também `propriedadeIds` inválido (com `campos.propriedadeIds`), usuário que não é `TECNICO` e id de propriedade `INATIVO`. |
 | 401 `"E-mail ou senha inválidos."` | Login com e-mail inexistente, senha errada ou usuário `INATIVO`: a mesma mensagem nos três casos, para não revelar quais e-mails existem. |
 | 401 `"Não autenticado."` | Sem token, token inválido ou expirado, ou usuário do token inexistente ou `INATIVO`. Desativar um usuário corta o acesso na hora, mesmo com o token no prazo. |
 | 403 `"Sem permissão para esta ação."` | Usuário logado sem o perfil exigido (ex.: `TECNICO` em `POST /api/usuarios`). |
-| 404 `"Usuário não encontrado."` | `PUT` ou `DELETE /api/usuarios/:id` com id que não existe. |
+| 404 `"Usuário não encontrado."` | `PUT` ou `DELETE /api/usuarios/:id`, e `GET` ou `PUT /api/usuarios/:id/propriedades`, com usuário que não existe. No `PUT /api/usuarios/:id/propriedades`, também id de propriedade que não existe (vence o 400 de propriedade `INATIVO`). |
 | 409 `"E-mail já cadastrado."` | `POST /api/usuarios`, ou `PUT /api/usuarios/:id`, com e-mail que já é de outro usuário (sem diferenciar maiúsculas). |
 | 409 `"Você não pode alterar o seu próprio perfil."` | `PUT /api/usuarios/:id` com o id do próprio ADMIN logado e um `perfil` diferente do atual. |
 | 409 `"Você não pode inativar a sua própria conta."` | `DELETE /api/usuarios/:id` com o id do próprio ADMIN logado. |
@@ -939,6 +952,7 @@ Regras: `nome` com 1 a 150 caracteres; `email` em formato válido, até 254 cara
   O `migrate deploy` só aplica as migrations novas. Ele nunca propõe reset.
 - Depois que um pull request com migration for mesclado, alguém precisa aplicá-la no banco compartilhado com o `migrate deploy` acima. Enquanto isso não acontece, o código novo pode falhar ao usar tabelas ou colunas que o banco ainda não tem.
 - **Migrations já aplicadas no banco compartilhado:** `criar_rota_logistica` (cria a tabela `RotaLogistica`) foi aplicada em 08/10/2026, com o `migrate deploy` acima.
+- **Migrations ainda NÃO aplicadas no banco compartilhado:** `criar_tecnico_propriedade` (cria a tabela `TecnicoPropriedade`, que liga técnico a propriedade). Foi aplicada só no banco de teste local. As rotas `GET` e `PUT /api/usuarios/:id/propriedades` e a leitura do perfil `TECNICO` dependem dessa tabela, então o código só deve ir para o ambiente do banco compartilhado depois que a migration for aplicada lá (depois da revisão, com o `migrate deploy` acima).
 - **Nunca** rode `npx prisma migrate reset` no banco compartilhado: ele apaga todos os dados.
 
 ## Variáveis de ambiente
@@ -1005,5 +1019,5 @@ Regras:
 
 MVP em desenvolvimento. A 1ª entrega é em 13/10/2026.
 
-- Pronto: Propriedades, Culturas, Sensores, Lotes e Logística (APIs em `/api/propriedades`, `/api/culturas`, `/api/sensores`, `/api/lotes` e `/api/logistica`; a migration da Logística já foi aplicada no banco compartilhado), alertas de temperatura e umidade pelas leituras do sensor (`GET /api/alertas`), resumo e médias do dashboard (`GET /api/dashboard/resumo` e `GET /api/dashboard/medias`), login (`/api/auth/login`, `/api/auth/me`, `/api/auth/logout`), listagem, criação, edição e inativação de usuários por ADMIN (`GET /api/usuarios`, `POST /api/usuarios`, `PUT /api/usuarios/:id` e `DELETE /api/usuarios/:id`) e visibilidade por dono em propriedades, sensores e lotes.
-- Próximas tarefas: exigir login em Culturas e Preços, ligar técnico a propriedades, colocar as Leituras para rodar no Render (a busca por agendamento no ThingSpeak e o `GET /api/leituras` já existem; falta criar o sensor e as variáveis no Render) e recuperação de senha.
+- Pronto: Propriedades, Culturas, Sensores, Lotes e Logística (APIs em `/api/propriedades`, `/api/culturas`, `/api/sensores`, `/api/lotes` e `/api/logistica`; a migration da Logística já foi aplicada no banco compartilhado), alertas de temperatura e umidade pelas leituras do sensor (`GET /api/alertas`), resumo e médias do dashboard (`GET /api/dashboard/resumo` e `GET /api/dashboard/medias`), login (`/api/auth/login`, `/api/auth/me`, `/api/auth/logout`), listagem, criação, edição e inativação de usuários por ADMIN (`GET /api/usuarios`, `POST /api/usuarios`, `PUT /api/usuarios/:id` e `DELETE /api/usuarios/:id`), vínculo de técnico com propriedades (`GET` e `PUT /api/usuarios/:id/propriedades`, com o técnico lendo só o que é vinculado a ele) e visibilidade por dono em propriedades, sensores e lotes.
+- Próximas tarefas: exigir login em Culturas e Preços, aplicar a migration `criar_tecnico_propriedade` no banco compartilhado, colocar as Leituras para rodar no Render (a busca por agendamento no ThingSpeak e o `GET /api/leituras` já existem; falta criar o sensor e as variáveis no Render) e recuperação de senha.
