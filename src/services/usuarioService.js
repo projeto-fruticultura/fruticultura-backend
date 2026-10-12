@@ -71,4 +71,54 @@ async function atualizar(id, dados, usuarioLogado) {
   }
 }
 
-module.exports = { criar, listar, inativar, atualizar };
+const SELECAO_PROPRIEDADE_VINCULADA = { id: true, nome: true, cidade: true, uf: true, status: true };
+
+// Vinculo so existe para TECNICO; para os outros perfis a mensagem avisa em vez de devolver lista vazia.
+// "cliente" e o prisma ou o cliente de uma transacao.
+async function buscarTecnico(cliente, id) {
+  const usuario = await cliente.usuario.findUnique({ where: { id }, select: { perfil: true } });
+  if (!usuario) throw new ErroHttp(404, "Usuário não encontrado.");
+  if (usuario.perfil !== "TECNICO") {
+    throw new ErroHttp(400, "Só é possível vincular propriedades a um usuário com perfil TECNICO.");
+  }
+}
+
+// Lista so as propriedades ATIVAS: um vinculo antigo com propriedade INATIVA fica guardado, mas nao aparece.
+async function listarPropriedadesVinculadas(cliente, usuarioId) {
+  return cliente.propriedade.findMany({
+    where: { status: "ATIVO", tecnicos: { some: { usuarioId } } },
+    select: SELECAO_PROPRIEDADE_VINCULADA,
+    orderBy: { nome: "asc" },
+  });
+}
+
+async function listarPropriedades(id) {
+  await buscarTecnico(prisma, id);
+  return listarPropriedadesVinculadas(prisma, id);
+}
+
+// Substitui o conjunto de propriedades do tecnico. Tudo ou nada: se um id nao serve, nada muda.
+// Apagar a linha de vinculo e a forma de desvincular (a tabela e so de ligacao, nao tem status).
+async function vincularPropriedades(id, propriedadeIds) {
+  return prisma.$transaction(async (tx) => {
+    await buscarTecnico(tx, id);
+
+    const encontradas = await tx.propriedade.findMany({
+      where: { id: { in: propriedadeIds } },
+      select: { id: true, status: true },
+    });
+    const erro = { propriedadeIds: "propriedade não encontrada." };
+    if (encontradas.length < propriedadeIds.length) throw new ErroHttp(404, "Propriedade não encontrada.", erro);
+    if (encontradas.some((p) => p.status !== "ATIVO")) throw new ErroHttp(400, "Propriedade não encontrada.", erro);
+
+    await tx.tecnicoPropriedade.deleteMany({ where: { usuarioId: id, propriedadeId: { notIn: propriedadeIds } } });
+    await tx.tecnicoPropriedade.createMany({
+      data: propriedadeIds.map((propriedadeId) => ({ usuarioId: id, propriedadeId })),
+      skipDuplicates: true,
+    });
+
+    return listarPropriedadesVinculadas(tx, id);
+  });
+}
+
+module.exports = { criar, listar, inativar, atualizar, listarPropriedades, vincularPropriedades };

@@ -28,6 +28,7 @@ model Usuario {
   perfil       Perfil
   status       Status        @default(ATIVO)
   propriedades Propriedade[]
+  vinculos     TecnicoPropriedade[]
   criadoEm     DateTime      @default(now())
   atualizadoEm DateTime      @updatedAt
 }
@@ -45,6 +46,7 @@ model Propriedade {
   usuario      Usuario  @relation(fields: [usuarioId], references: [id])
   lotes        Lote[]
   rotasLogistica RotaLogistica[]
+  tecnicos     TecnicoPropriedade[]
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
 
@@ -131,5 +133,20 @@ model RotaLogistica {
   atualizadoEm       DateTime    @updatedAt
   propriedade        Propriedade @relation(fields: [propriedadeId], references: [id])
 
+  @@index([propriedadeId])
+}
+
+// Liga um tecnico as propriedades que ele pode ler (muitos-para-muitos). A tabela e so de ligacao:
+// desvincular apaga a linha. O vinculo e guardado mesmo se o usuario deixar de ser TECNICO ou ficar
+// INATIVO; a regra de visibilidade usa o perfil atual e simplesmente ignora o vinculo nesses casos.
+model TecnicoPropriedade {
+  usuarioId     Int
+  propriedadeId Int
+  criadoEm      DateTime    @default(now())
+  usuario       Usuario     @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  propriedade   Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Restrict)
+
+  @@id([usuarioId, propriedadeId])
+  // A chave composta ja serve as buscas por usuario; este indice serve as buscas por propriedade.
   @@index([propriedadeId])
 }

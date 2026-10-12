@@ -9,6 +9,9 @@ const router = Router();
 router.get("/", autenticar, exigirPerfil("ADMIN"), controller.listar);
 router.post("/", autenticar, exigirPerfil("ADMIN"), controller.criar);
 router.put("/:id", autenticar, exigirPerfil("ADMIN"), controller.atualizar);
+// Vinculo do TECNICO com propriedades: o PUT substitui a lista inteira (lista vazia desvincula tudo).
+router.get("/:id/propriedades", autenticar, exigirPerfil("ADMIN"), controller.listarPropriedades);
+router.put("/:id/propriedades", autenticar, exigirPerfil("ADMIN"), controller.vincularPropriedades);
 // Exclusao logica: o usuario vira INATIVO e a linha nunca e apagada.
 router.delete("/:id", autenticar, exigirPerfil("ADMIN"), controller.remover);
 
