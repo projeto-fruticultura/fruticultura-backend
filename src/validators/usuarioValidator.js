@@ -1,6 +1,8 @@
 const { ErroHttp } = require("../middlewares/erros");
 // Mesmos limites do login, importados para nao manter duas copias.
 const { EMAIL_MAXIMO, SENHA_MAXIMO_BYTES } = require("./authValidator");
+// Mesma validacao de :id das outras rotas, importada para nao manter duas copias.
+const { validarId } = require("./propriedadeValidator");
 
 const NOME_MAXIMO = 150;
 const SENHA_MINIMO_BYTES = 8;
@@ -55,4 +57,4 @@ function validarUsuario(corpo) {
   };
 }
 
-module.exports = { validarUsuario };
+module.exports = { validarUsuario, validarId };

@@ -28,4 +28,21 @@ async function criar(dados) {
   }
 }
 
-module.exports = { criar };
+// Ativos e inativos juntos (cada um com seu status), sem paginacao.
+async function listar() {
+  return prisma.usuario.findMany({ select: SELECAO_PUBLICA, orderBy: { nome: "asc" } });
+}
+
+async function inativar(id, usuarioLogado) {
+  // O ADMIN nao inativa a si mesmo: assim sempre sobra pelo menos um ADMIN ativo.
+  if (id === usuarioLogado.id) {
+    throw new ErroHttp(409, "Você não pode inativar a sua própria conta.");
+  }
+
+  // Exclusao logica: a linha fica no banco. Sem filtro de status, inativar quem ja esta
+  // INATIVO tambem da 204 (idempotente); so id inexistente conta 0 linhas.
+  const { count } = await prisma.usuario.updateMany({ where: { id }, data: { status: "INATIVO" } });
+  if (count === 0) throw new ErroHttp(404, "Usuário não encontrado.");
+}
+
+module.exports = { criar, listar, inativar };
