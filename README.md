@@ -116,7 +116,7 @@ prisma/
 
 ## Endpoints planejados
 
-Os endpoints abaixo são uma proposta inicial e poderão ser ajustados. Já estão prontos: Propriedades, Culturas, Sensores, Lotes, Logística, `GET /api/leituras`, `GET /api/alertas`, `GET /api/dashboard/resumo`, `GET /api/dashboard/medias`, `POST /api/auth/login`, `GET /api/auth/me`, `POST /api/auth/logout`, `GET /api/usuarios`, `POST /api/usuarios` e `DELETE /api/usuarios/:id` (veja [Endpoints prontos: Autenticação e usuários](#endpoints-prontos-autenticação-e-usuários)).
+Os endpoints abaixo são uma proposta inicial e poderão ser ajustados. Já estão prontos: Propriedades, Culturas, Sensores, Lotes, Logística, `GET /api/leituras`, `GET /api/alertas`, `GET /api/dashboard/resumo`, `GET /api/dashboard/medias`, `POST /api/auth/login`, `GET /api/auth/me`, `POST /api/auth/logout`, `GET /api/usuarios`, `POST /api/usuarios`, `PUT /api/usuarios/:id` e `DELETE /api/usuarios/:id` (veja [Endpoints prontos: Autenticação e usuários](#endpoints-prontos-autenticação-e-usuários)).
 
 ### Autenticação
 
@@ -868,6 +868,7 @@ Regras:
 | POST | `/api/auth/logout` | token | Só responde 204: o servidor não guarda sessão. Quem "desloga" é o front, apagando o token, que expira sozinho (padrão: 2h) | 204 |
 | GET | `/api/usuarios` | token de ADMIN | Lista os usuários, ativos e inativos, ordenados por `nome`, sem paginação | 200 |
 | POST | `/api/usuarios` | token de ADMIN | Cria um usuário com perfil `PRODUTOR`, `TECNICO` ou `ADMIN` | 201 |
+| PUT | `/api/usuarios/:id` | token de ADMIN | Edita `nome`, `email` e `perfil` de um usuário (parcial: mande só o que mudou) | 200 |
 | DELETE | `/api/usuarios/:id` | token de ADMIN | Inativa o usuário (`status` vira `INATIVO`); a linha não é apagada | 204 |
 
 Não existe cadastro público: só um ADMIN logado cria usuários, **inclusive outros ADMIN**. O primeiro ADMIN é o do seed (`SEED_ADMIN_EMAIL`). **Não abra essa rota**: se o `POST /api/usuarios` ficar sem login, qualquer pessoa poderia criar uma conta ADMIN.
@@ -901,16 +902,25 @@ Corpo do `POST /api/usuarios` (todos obrigatórios; o usuário sempre nasce `ATI
 
 Cada item do `GET /api/usuarios` tem só `id`, `nome`, `email`, `perfil` e `status` (a senha nunca sai). O `DELETE /api/usuarios/:id` não tem corpo e responde 204 sem conteúdo; repetir em quem já está `INATIVO` também responde 204. O usuário inativado perde o acesso na hora (login e token). O ADMIN não pode inativar a própria conta (409), o que garante que sempre sobra pelo menos um ADMIN ativo. Reativar usuário ainda não existe.
 
+Corpo do `PUT /api/usuarios/:id` (parcial: todos os campos são opcionais e o que não vier mantém o valor salvo; `{}` responde 200 sem alterar nada):
+
+```json
+{ "nome": "Maria Souza", "email": "maria.souza@exemplo.com", "perfil": "PRODUTOR" }
+```
+
+O `PUT` aceita só `nome`, `email` e `perfil`, com as mesmas regras do cadastro; `null` ou texto vazio em um campo enviado é erro 400. `id`, `status`, `senha` e outros campos enviados no corpo são **ignorados**: a senha não muda por aqui. A resposta é 200 com `id`, `nome`, `email`, `perfil` e `status` já atualizados, sem a senha. Mandar o e-mail que o próprio usuário já tem não dá 409. Usuário `INATIVO` pode ser editado e continua `INATIVO`. A troca de perfil vale na próxima requisição do usuário editado, mesmo com o token antigo, porque o perfil vem do banco. O ADMIN pode editar o próprio `nome` e `email`, mas não o próprio `perfil` (409; mandar o perfil que já tem passa), o que garante que sempre sobra pelo menos um ADMIN ativo.
+
 Regras: `nome` com 1 a 150 caracteres; `email` em formato válido, até 254 caracteres, gravado em minúsculas; `senha` de 8 a 72 bytes (o bcrypt ignora o que passa de 72); `perfil` `PRODUTOR`, `TECNICO` ou `ADMIN`.
 
 | Status | Quando |
 |---|---|
-| 400 | Dados inválidos, com `campos` (uma mensagem por campo). No `DELETE /api/usuarios/:id`, `:id` que não é um inteiro positivo. |
+| 400 | Dados inválidos, com `campos` (uma mensagem por campo). No `PUT` e no `DELETE /api/usuarios/:id`, `:id` que não é um inteiro positivo. |
 | 401 `"E-mail ou senha inválidos."` | Login com e-mail inexistente, senha errada ou usuário `INATIVO`: a mesma mensagem nos três casos, para não revelar quais e-mails existem. |
 | 401 `"Não autenticado."` | Sem token, token inválido ou expirado, ou usuário do token inexistente ou `INATIVO`. Desativar um usuário corta o acesso na hora, mesmo com o token no prazo. |
 | 403 `"Sem permissão para esta ação."` | Usuário logado sem o perfil exigido (ex.: `TECNICO` em `POST /api/usuarios`). |
-| 404 `"Usuário não encontrado."` | `DELETE /api/usuarios/:id` com id que não existe. |
-| 409 `"E-mail já cadastrado."` | `POST /api/usuarios` com e-mail que já existe (sem diferenciar maiúsculas). |
+| 404 `"Usuário não encontrado."` | `PUT` ou `DELETE /api/usuarios/:id` com id que não existe. |
+| 409 `"E-mail já cadastrado."` | `POST /api/usuarios`, ou `PUT /api/usuarios/:id`, com e-mail que já é de outro usuário (sem diferenciar maiúsculas). |
+| 409 `"Você não pode alterar o seu próprio perfil."` | `PUT /api/usuarios/:id` com o id do próprio ADMIN logado e um `perfil` diferente do atual. |
 | 409 `"Você não pode inativar a sua própria conta."` | `DELETE /api/usuarios/:id` com o id do próprio ADMIN logado. |
 | 429 | Muitas tentativas de login com falha. |
 
@@ -995,5 +1005,5 @@ Regras:
 
 MVP em desenvolvimento. A 1ª entrega é em 13/10/2026.
 
-- Pronto: Propriedades, Culturas, Sensores, Lotes e Logística (APIs em `/api/propriedades`, `/api/culturas`, `/api/sensores`, `/api/lotes` e `/api/logistica`; a migration da Logística já foi aplicada no banco compartilhado), alertas de temperatura e umidade pelas leituras do sensor (`GET /api/alertas`), resumo e médias do dashboard (`GET /api/dashboard/resumo` e `GET /api/dashboard/medias`), login (`/api/auth/login`, `/api/auth/me`, `/api/auth/logout`), listagem, criação e inativação de usuários por ADMIN (`GET /api/usuarios`, `POST /api/usuarios` e `DELETE /api/usuarios/:id`) e visibilidade por dono em propriedades, sensores e lotes.
+- Pronto: Propriedades, Culturas, Sensores, Lotes e Logística (APIs em `/api/propriedades`, `/api/culturas`, `/api/sensores`, `/api/lotes` e `/api/logistica`; a migration da Logística já foi aplicada no banco compartilhado), alertas de temperatura e umidade pelas leituras do sensor (`GET /api/alertas`), resumo e médias do dashboard (`GET /api/dashboard/resumo` e `GET /api/dashboard/medias`), login (`/api/auth/login`, `/api/auth/me`, `/api/auth/logout`), listagem, criação, edição e inativação de usuários por ADMIN (`GET /api/usuarios`, `POST /api/usuarios`, `PUT /api/usuarios/:id` e `DELETE /api/usuarios/:id`) e visibilidade por dono em propriedades, sensores e lotes.
 - Próximas tarefas: exigir login em Culturas e Preços, ligar técnico a propriedades, colocar as Leituras para rodar no Render (a busca por agendamento no ThingSpeak e o `GET /api/leituras` já existem; falta criar o sensor e as variáveis no Render) e recuperação de senha.
