@@ -38,7 +38,9 @@ function validarDataInstalacao(valor) {
 }
 
 // Valida o corpo do POST/PUT e devolve so os campos permitidos.
-// id e status nunca vem do cliente.
+// id e status nunca vem do cliente. channelId e readApiKey tambem nao: sao definidos so pela
+// configuracao do ThingSpeak, que testa a conexao antes de salvar. Como qualquer campo fora da
+// lista abaixo, sao ignorados (e nao recusados), para o front poder reenviar o sensor que leu no GET.
 function validarSensor(corpo) {
   if (!corpo || typeof corpo !== "object" || Array.isArray(corpo)) {
     throw new ErroHttp(400, "Envie os dados do sensor em JSON.");

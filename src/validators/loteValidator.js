@@ -1,3 +1,4 @@
+const { FaseFenologica } = require("@prisma/client");
 const { ErroHttp } = require("../middlewares/erros");
 // Mesma regra de :id de Propriedades; importado para nao manter duas copias.
 const { validarId } = require("./propriedadeValidator");
@@ -8,6 +9,8 @@ const AREA_MAXIMA = 99999999.99; // Decimal(10, 2)
 const IDENTIFICACAO_MAXIMO = 100; // VarChar(100)
 const SITUACAO_MAXIMO = 30; // VarChar(30)
 const FORMATO_DATA = /^(\d{4})-(\d{2})-(\d{2})$/;
+// Lida do enum gerado pelo Prisma: a lista aceita e sempre a mesma do schema.
+const FASES_FENOLOGICAS = Object.values(FaseFenologica);
 
 // ---------- GET /lotes ----------
 
@@ -181,6 +184,18 @@ function lerCoordenadas(corpo, campos) {
   return erroLat || erroLon ? undefined : { latitude, longitude };
 }
 
+// Opcional: um dos valores do enum, exatamente como escrito (sem trim nem maiusculas automaticas),
+// ou null, que limpa (no PUT) ou significa "sem fase" (no POST).
+function lerFaseFenologica(corpo, campos) {
+  const valor = corpo.faseFenologica;
+  if (valor === undefined || valor === null) return valor;
+  if (typeof valor !== "string" || !FASES_FENOLOGICAS.includes(valor)) {
+    campos.faseFenologica = `faseFenologica deve ser um destes valores: ${FASES_FENOLOGICAS.join(", ")} (ou null).`;
+    return undefined;
+  }
+  return valor;
+}
+
 // Valida o corpo do POST (modo "criar") ou do PUT (modo "atualizar") e devolve so os campos permitidos.
 // id, status e (no PUT) propriedadeId nunca vem do cliente: sao ignorados, como qualquer campo desconhecido.
 // No PUT tudo e opcional: o que for omitido mantem o valor salvo.
@@ -199,6 +214,7 @@ function validarLote(corpo, modo) {
     // colheitaEstimada e a unica data opcional: null limpa (no PUT) ou significa "sem data" (no POST).
     colheitaEstimada: lerCampoData(corpo, "colheitaEstimada", campos, { obrigatorio: false, aceitaNulo: true }),
     culturaId: lerIdNumerico(corpo, "culturaId", campos, criar),
+    faseFenologica: lerFaseFenologica(corpo, campos),
   };
   if (criar) dados.propriedadeId = lerIdNumerico(corpo, "propriedadeId", campos, true);
 
@@ -219,6 +235,7 @@ function validarLote(corpo, modo) {
       colheitaEstimada: dados.colheitaEstimada ?? null,
       latitude: dados.latitude ?? null,
       longitude: dados.longitude ?? null,
+      faseFenologica: dados.faseFenologica ?? null,
     };
   }
   // No PUT, remove o que nao veio: undefined nao pode virar "limpar o campo".
