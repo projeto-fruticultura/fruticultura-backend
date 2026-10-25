@@ -19,6 +19,14 @@ enum Status {
   INATIVO
 }
 
+// Fase do ciclo da cultura no lote (ex.: manga). Enum porque a lista e fechada e o banco ja barra valor invalido.
+enum FaseFenologica {
+  VEGETATIVA
+  FLORACAO_PANICULA
+  FRUTIFICACAO
+  MATURACAO
+}
+
 // Sem cpf por enquanto: decisao pendente no grupo (LGPD, minimizacao de dados).
 model Usuario {
   id           Int           @id @default(autoincrement())
@@ -79,6 +87,8 @@ model Lote {
   // Opcionais: os lotes antigos nao tem coordenadas e nao se inventa valor. Sempre juntas ou nenhuma (regra no validator).
   latitude         Decimal?    @db.Decimal(10, 8)
   longitude        Decimal?    @db.Decimal(11, 8)
+  // Opcional: os lotes antigos nao tem fase informada e nao se inventa valor.
+  faseFenologica   FaseFenologica?
   propriedade      Propriedade @relation(fields: [propriedadeId], references: [id])
   cultura          Cultura     @relation(fields: [culturaId], references: [id])
   sensores         Sensor[]
@@ -93,6 +103,9 @@ model Sensor {
   localizacao    String?  @db.VarChar(150)
   dataInstalacao DateTime @db.Date
   status         Status   @default(ATIVO)
+  // Canal do ThingSpeak de onde vem as leituras. Opcionais: os sensores atuais nao tem.
+  channelId      String?  @db.VarChar(20)
+  readApiKey     String?  @db.VarChar(64)
   loteId         Int
   lote           Lote     @relation(fields: [loteId], references: [id])
   leituras       Leitura[]
