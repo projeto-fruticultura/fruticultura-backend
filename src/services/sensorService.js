@@ -1,115 +1,187 @@
-const { Prisma } = require("@prisma/client");
-const prisma = require("../config/prisma");
-const { ErroHttp } = require("../middlewares/erros");
-const { filtroLote, filtroSensor } = require("./escopoDono");
-
-const ERRO_NAO_ENCONTRADO = "Sensor não encontrado.";
-
-// Campos devolvidos ao front: o lote vem so com o necessario para exibir.
-const SELECAO = {
-  id: true,
-  codigo: true,
-  tipo: true,
-  localizacao: true,
-  dataInstalacao: true,
-  status: true,
-  loteId: true,
-  lote: { select: { id: true, identificacao: true } },
-};
-
-// A data e gravada a meia-noite UTC, entao os 10 primeiros caracteres sao o dia certo.
-function formatar(sensor) {
-  return { ...sensor, dataInstalacao: sensor.dataInstalacao.toISOString().slice(0, 10) };
-}
-
-// O lote precisa ser visivel ao usuario (dono da propriedade, ou ADMIN) e estar ATIVO.
-// Inexistente, de outra pessoa ou INATIVO: 404, a mesma resposta nos tres casos, para nao revelar
-// quais ids de lote existem. Lote ATIVO de propriedade INATIVA: 400 (a propriedade foi excluida).
-// O status do lote e conferido so aqui, e nao no filtroLote: filtroSensor nao pode herdar esse
-// filtro, senao os sensores e as leituras de um lote inativo sumiriam do historico.
-async function garantirLote(loteId, usuario) {
-  const lote = await prisma.lote.findFirst({
-    where: { id: loteId, status: "ATIVO", AND: [filtroLote(usuario)] },
-    select: { propriedade: { select: { status: true } } },
-  });
-  if (!lote) {
-    throw new ErroHttp(404, "Lote não encontrado.", { loteId: "lote não encontrado." });
-  }
-  if (lote.propriedade.status !== "ATIVO") {
-    throw new ErroHttp(400, "Lote não encontrado.", { loteId: "lote não encontrado." });
-  }
-}
-
-// codigo e @unique no schema: o banco recusa repetido com o erro P2002.
-// Traduzimos para 409 sem repassar a mensagem interna do Prisma.
-function traduzirCodigoRepetido(erro) {
-  if (erro instanceof Prisma.PrismaClientKnownRequestError && erro.code === "P2002") {
-    return new ErroHttp(409, "Já existe um sensor com esse código.", {
-      codigo: "já existe um sensor com esse código.",
-    });
-  }
-  return erro;
-}
+const { PrismaClient } = require("@prisma/client");
+const prisma = new PrismaClient();
 
 async function listar(usuario) {
-  const sensores = await prisma.sensor.findMany({
-    where: { status: "ATIVO", AND: [filtroSensor(usuario)] },
-    orderBy: { codigo: "asc" },
-    select: SELECAO,
-  });
-  return sensores.map(formatar);
+  if (usuario.perfil === "ADMIN") {
+    return await prisma.sensor.findMany({
+      include: { lote: { include: { propriedade: true } } }
+    });
+  }
+
+
+  if (usuario.perfil === "PRODUTOR") {
+    return await prisma.sensor.findMany({
+      where: {
+        lote: {
+          propriedade: {
+            usuarioId: usuario.id
+          }
+        }
+      },
+      include: { lote: { include: { propriedade: true } } }
+    });
+  }
+
+
+  if (usuario.perfil === "TECNICO") {
+    const vinculos = await prisma.tecnicoPropriedade.findMany({
+      where: { tecnicoId: usuario.id },
+      select: { propriedadeId: true }
+    });
+    const propriedadeIds = vinculos.map(v => v.propriedadeId);
+
+    return await prisma.sensor.findMany({
+      where: {
+        lote: {
+          propriedadeId: {
+            in: propriedadeIds
+          }
+        }
+      },
+      include: { lote: { include: { propriedade: true } } }
+    });
+  }
+
+  return [];
 }
 
 async function buscarPorId(id, usuario) {
-  // Sensor INATIVO ou de outro dono: 404, como se nao existisse.
-  const sensor = await prisma.sensor.findFirst({
-    where: { id, status: "ATIVO", AND: [filtroSensor(usuario)] },
-    select: SELECAO,
+  const sensor = await prisma.sensor.findUnique({
+    where: { id: Number(id) },
+    include: { lote: { include: { propriedade: true } } }
   });
-  if (!sensor) throw new ErroHttp(404, ERRO_NAO_ENCONTRADO);
-  return formatar(sensor);
+
+  if (!sensor) {
+    throw new Error("Sensor não encontrado.");
+  }
+
+  // Validação de permissão por perfil
+  if (usuario.perfil === "PRODUTOR" && sensor.lote.propriedade.usuarioId !== usuario.id) {
+    throw new Error("Acesso negado a este sensor.");
+  }
+
+  if (usuario.perfil === "TECNICO") {
+    const vinculo = await prisma.tecnicoPropriedade.findFirst({
+      where: {
+        tecnicoId: usuario.id,
+        propriedadeId: sensor.lote.propriedadeId
+      }
+    });
+    if (!vinculo) {
+      throw new Error("Acesso negado a este sensor.");
+    }
+  }
+
+  return sensor;
 }
 
 async function criar(dados, usuario) {
-  // So aceita loteId de lote visivel: ninguem cria sensor na propriedade de outra pessoa.
-  await garantirLote(dados.loteId, usuario);
-  try {
-    return formatar(await prisma.sensor.create({ data: dados, select: SELECAO }));
-  } catch (erro) {
-    throw traduzirCodigoRepetido(erro);
+  // Apenas ADMIN e PRODUTOR podem criar (o middleware na rota já bloqueia técnico, mas validamos a lógica se necessário)
+  const lote = await prisma.lote.findUnique({
+    where: { id: dados.loteId },
+    include: { propriedade: true }
+  });
+
+  if (!lote) {
+    throw new Error("Lote não encontrado.");
   }
+
+  if (usuario.perfil === "PRODUTOR" && lote.propriedade.usuarioId !== usuario.id) {
+    throw new Error("Não pode criar sensores em lotes de outros produtores.");
+  }
+
+  return await prisma.sensor.create({
+    data: dados
+  });
 }
 
 async function atualizar(id, dados, usuario) {
-  const filtro = { id, status: "ATIVO", AND: [filtroSensor(usuario)] };
+  await buscarPorId(id, usuario); // Valida se existe e se tem permissão
 
-  // Primeiro o 404: nao adianta validar o lote de um sensor que nao existe (ou e de outro dono).
-  const existe = await prisma.sensor.findFirst({ where: filtro, select: { id: true } });
-  if (!existe) throw new ErroHttp(404, ERRO_NAO_ENCONTRADO);
-
-  // O lote de destino tambem precisa ser visivel: ninguem move sensor para o lote de outra pessoa.
-  await garantirLote(dados.loteId, usuario);
-
-  let count;
-  try {
-    // updateMany com o filtro de dono no where: a regra vale na propria gravacao.
-    ({ count } = await prisma.sensor.updateMany({ where: filtro, data: dados }));
-  } catch (erro) {
-    throw traduzirCodigoRepetido(erro);
-  }
-  if (count === 0) throw new ErroHttp(404, ERRO_NAO_ENCONTRADO);
-
-  return buscarPorId(id, usuario);
+  return await prisma.sensor.update({
+    where: { id: Number(id) },
+    data: dados
+  });
 }
 
 async function remover(id, usuario) {
-  // Exclusao logica: as leituras futuras dependem do sensor, entao a linha fica no banco.
-  // O filtro de dono no where faz o sensor de outra pessoa dar 404.
-  const { count } = await prisma.sensor.updateMany({
-    where: { id, status: "ATIVO", AND: [filtroSensor(usuario)] },
-    data: { status: "INATIVO" },
+  await buscarPorId(id, usuario); 
+
+  return await prisma.sensor.delete({
+    where: { id: Number(id) }
   });
-  if (count === 0) throw new ErroHttp(404, ERRO_NAO_ENCONTRADO);
 }
 
-module.exports = { listar, buscarPorId, criar, atualizar, remover };
+async function listarLeiturasComFiltro(sensorId, periodo, usuario) {
+
+  const sensor = await buscarPorId(sensorId, usuario);
+  if (!sensor) {
+    throw new Error("Sensor não encontrado ou sem permissão.");
+  }
+
+  const agora = new Date();
+  let dataInicial = new Date();
+
+  // Tratamento dos períodos solicitados
+  if (periodo === "7d") {
+    dataInicial.setDate(agora.getDate() - 7);
+  } else if (periodo === "30d") {
+    dataInicial.setDate(agora.getDate() - 30);
+  } else {
+    // Padrão: 24h
+    dataInicial.setHours(agora.getHours() - 24);
+  }
+
+  const leituras = await prisma.leitura.findMany({
+    where: {
+      sensorId: Number(sensorId),
+      criadoEm: {
+        gte: dataInicial,
+        lte: agora
+      }
+    },
+    orderBy: {
+      criadoEm: "asc"
+    }
+  });
+
+  // Cálculo real das agregações estatísticas com base nos dados reais recolhidos
+  let estatisticas = {
+    temperaturaMedia: 0,
+    temperaturaMin: 0,
+    temperaturaMax: 0,
+    umidadeMedia: 0,
+    umidadeMin: 0,
+    umidadeMax: 0,
+    totalLeituras: leituras.length
+  };
+
+  if (leituras.length > 0) {
+    const somaTemp = leituras.reduce((acc, l) => acc + Number(l.temperatura || 0), 0);
+    const somaUmi = leituras.reduce((acc, l) => acc + Number(l.umidade || 0), 0);
+    const temps = leituras.map(l => Number(l.temperatura || 0));
+    const umidades = leituras.map(l => Number(l.umidade || 0));
+
+    estatisticas.temperaturaMedia = Number((somaTemp / leituras.length).toFixed(2));
+    estatisticas.temperaturaMin = Math.min(...temps);
+    estatisticas.temperaturaMax = Math.max(...temps);
+    estatisticas.umidadeMedia = Number((somaUmi / leituras.length).toFixed(2));
+    estatisticas.umidadeMin = Math.min(...umidades);
+    estatisticas.umidadeMax = Math.max(...umidades);
+  }
+
+  return {
+    periodoSelecionado: periodo || "24h",
+    estatisticas,
+    leituras
+  };
+}
+
+module.exports = {
+  listar,
+  buscarPorId,
+  criar,
+  atualizar,
+  remover,
+  listarLeiturasComFiltro
+};

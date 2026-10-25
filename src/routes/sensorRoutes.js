@@ -13,6 +13,7 @@ const podeAlterar = exigirPerfil("ADMIN", "PRODUTOR");
 // Caminhos sem "/sensores": o prefixo e definido em routes/index.js.
 router.get("/", controller.listar);
 router.get("/:id", controller.buscarPorId);
+router.get("/:id/leituras", controller.listarLeituras);
 router.post("/", podeAlterar, controller.criar);
 router.put("/:id", podeAlterar, controller.atualizar);
 router.delete("/:id", podeAlterar, controller.remover);

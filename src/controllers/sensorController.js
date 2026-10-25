@@ -31,4 +31,11 @@ async function remover(req, res) {
   res.status(204).end();
 }
 
-module.exports = { listar, buscarPorId, criar, atualizar, remover };
+async function listarLeituras(req, res) {
+  const id = validarId(req.params.id);
+  const { periodo } = req.query; // Ex: ?periodo=24h, ?periodo=7d, ?periodo=30d
+  
+  res.status(200).json(await sensorService.listarLeiturasComFiltro(id, periodo, req.usuario));
+}
+
+module.exports = { listar, buscarPorId, criar, atualizar, remover, listarLeituras };
