@@ -1,9 +1,14 @@
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
+// A chave de leitura do ThingSpeak e segredo: toda consulta de sensor deste arquivo a omite,
+// para ela nunca sair numa resposta. So a configuracao do ThingSpeak a le, pedindo explicitamente.
+const SEM_READ_API_KEY = { readApiKey: true };
+
 async function listar(usuario) {
   if (usuario.perfil === "ADMIN") {
     return await prisma.sensor.findMany({
+      omit: SEM_READ_API_KEY,
       include: { lote: { include: { propriedade: true } } }
     });
   }
@@ -18,6 +23,7 @@ async function listar(usuario) {
           }
         }
       },
+      omit: SEM_READ_API_KEY,
       include: { lote: { include: { propriedade: true } } }
     });
   }
@@ -38,6 +44,7 @@ async function listar(usuario) {
           }
         }
       },
+      omit: SEM_READ_API_KEY,
       include: { lote: { include: { propriedade: true } } }
     });
   }
@@ -48,6 +55,7 @@ async function listar(usuario) {
 async function buscarPorId(id, usuario) {
   const sensor = await prisma.sensor.findUnique({
     where: { id: Number(id) },
+    omit: SEM_READ_API_KEY,
     include: { lote: { include: { propriedade: true } } }
   });
 
@@ -91,7 +99,8 @@ async function criar(dados, usuario) {
   }
 
   return await prisma.sensor.create({
-    data: dados
+    data: dados,
+    omit: SEM_READ_API_KEY
   });
 }
 
@@ -100,7 +109,8 @@ async function atualizar(id, dados, usuario) {
 
   return await prisma.sensor.update({
     where: { id: Number(id) },
-    data: dados
+    data: dados,
+    omit: SEM_READ_API_KEY
   });
 }
 
@@ -108,7 +118,8 @@ async function remover(id, usuario) {
   await buscarPorId(id, usuario); 
 
   return await prisma.sensor.delete({
-    where: { id: Number(id) }
+    where: { id: Number(id) },
+    omit: SEM_READ_API_KEY
   });
 }
 

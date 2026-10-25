@@ -38,7 +38,9 @@ function validarDataInstalacao(valor) {
 }
 
 // Valida o corpo do POST/PUT e devolve so os campos permitidos.
-// id e status nunca vem do cliente.
+// id e status nunca vem do cliente. channelId e readApiKey tambem nao: sao definidos so pela
+// configuracao do ThingSpeak, que testa a conexao antes de salvar. Como qualquer campo fora da
+// lista abaixo, sao ignorados (e nao recusados), para o front poder reenviar o sensor que leu no GET.
 function validarSensor(corpo) {
   if (!corpo || typeof corpo !== "object" || Array.isArray(corpo)) {
     throw new ErroHttp(400, "Envie os dados do sensor em JSON.");
@@ -85,4 +87,41 @@ function validarSensor(corpo) {
   };
 }
 
-module.exports = { validarSensor, validarId };
+// ---------- POST /sensores/config ----------
+
+// Corpo estrito: devolve so sensorId, channelId e readApiKey; o resto e ignorado.
+// Sem trim: espaco no canal ou na chave e erro de digitacao, e "consertar" esconderia isso.
+// channelId e texto (como no banco) e so digitos: ele entra no caminho da URL do ThingSpeak.
+// As mensagens nunca repetem o valor recebido: a chave e segredo.
+function validarConfigThingSpeak(corpo) {
+  if (!corpo || typeof corpo !== "object" || Array.isArray(corpo)) {
+    throw new ErroHttp(400, "Envie os dados da configuração em JSON.");
+  }
+
+  const { sensorId, channelId, readApiKey } = corpo;
+  const campos = {};
+
+  if (sensorId === undefined || sensorId === null) campos.sensorId = "sensorId é obrigatório.";
+  // Numero de verdade: "1" (texto) e recusado, como loteId.
+  else if (typeof sensorId !== "number" || !Number.isInteger(sensorId) || sensorId < 1 || sensorId > MAIOR_ID) {
+    campos.sensorId = "sensorId deve ser um número inteiro positivo.";
+  }
+
+  if (channelId === undefined || channelId === null) campos.channelId = "channelId é obrigatório.";
+  else if (typeof channelId !== "string" || !/^\d{1,20}$/.test(channelId)) {
+    campos.channelId = "channelId deve ser um texto com 1 a 20 dígitos (só números, sem espaços).";
+  }
+
+  if (readApiKey === undefined || readApiKey === null) campos.readApiKey = "readApiKey é obrigatória.";
+  else if (typeof readApiKey !== "string" || !/^[A-Za-z0-9]{1,64}$/.test(readApiKey)) {
+    campos.readApiKey = "readApiKey deve ter de 1 a 64 letras ou números (sem espaços).";
+  }
+
+  if (Object.keys(campos).length > 0) {
+    throw new ErroHttp(400, "Dados inválidos.", campos);
+  }
+
+  return { sensorId, channelId, readApiKey };
+}
+
+module.exports = { validarSensor, validarId, validarConfigThingSpeak };

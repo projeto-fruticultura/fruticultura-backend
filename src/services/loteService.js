@@ -16,6 +16,7 @@ const SELECAO = {
   status: true,
   latitude: true,
   longitude: true,
+  faseFenologica: true,
   propriedadeId: true,
   culturaId: true,
   cultura: { select: { id: true, nome: true, variedade: true } },

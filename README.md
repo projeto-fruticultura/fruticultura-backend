@@ -178,6 +178,7 @@ POST   /api/sensores
 GET    /api/sensores/:id
 PUT    /api/sensores/:id
 DELETE /api/sensores/:id
+POST   /api/sensores/config
 ```
 
 ### Logística
@@ -570,6 +571,49 @@ Corpo do POST/PUT (`localizacao` é opcional; `dataInstalacao` em `AAAA-MM-DD`, 
 Nas respostas, `dataInstalacao` também vem em `AAAA-MM-DD`.
 
 Erros do cadastro e da edição: `loteId` inexistente, de outra pessoa ou de lote `INATIVO`: 404 "Lote não encontrado." (a mesma resposta nos três casos); lote ativo de propriedade excluída (`INATIVO`): 400. Sensor de outra pessoa: 404.
+
+#### Configurar o canal do ThingSpeak (`POST /api/sensores/config`)
+
+Liga um sensor ao canal do ThingSpeak de onde vêm as leituras dele. Antes de salvar, o backend lê 1 registro do canal com as credenciais enviadas: **só grava se o ThingSpeak responder 200**. Se o teste falhar, nada muda no sensor.
+
+- **Perfis:** ADMIN (qualquer sensor) e TECNICO (só sensores das propriedades vinculadas a ele). PRODUTOR: 403.
+- **Sensor:** precisa estar `ATIVO`, numa propriedade `ATIVA` e dentro do escopo do usuário. Fora disso, a resposta é 404, a mesma para sensor inexistente e para sensor de outra pessoa, para não revelar quais ids existem.
+- **Limite:** 10 chamadas por usuário a cada 15 minutos (cada chamada consulta o ThingSpeak). Acima disso: 429.
+- `channelId` e `readApiKey` só podem ser definidos por esta rota. O `POST` e o `PUT` comuns de sensor ignoram esses campos.
+
+Corpo (os três campos são obrigatórios; outros campos são ignorados; nada é aparado, então espaço sobrando é erro):
+
+```json
+{
+  "sensorId": 1,
+  "channelId": "1234567",
+  "readApiKey": "<chave de leitura do canal>"
+}
+```
+
+- `sensorId`: número inteiro positivo (texto como `"1"` é recusado).
+- `channelId`: **texto** só com dígitos, de 1 a 20.
+- `readApiKey`: de 1 a 64 letras ou números.
+
+Resposta de sucesso (200). **A chave nunca volta**, nem aqui nem em `GET /api/sensores`:
+
+```json
+{ "id": 1, "codigo": "ESP32-POC-01", "channelId": "1234567", "conectado": true }
+```
+
+| Código | Quando |
+|---|---|
+| 200 | O ThingSpeak aceitou as credenciais e o sensor foi atualizado |
+| 400 | Corpo inválido (JSON quebrado, campo faltando ou fora do formato), com `campos` |
+| 401 | Sem token, token inválido ou usuário inativo |
+| 403 | Perfil sem permissão (PRODUTOR) |
+| 404 | Sensor inexistente, `INATIVO`, de propriedade inativa ou fora do escopo do usuário |
+| 422 | O ThingSpeak recusou o canal ou a chave (resposta 4xx, ou 200 sem os dados do canal). Nada foi salvo |
+| 429 | Mais de 10 chamadas do mesmo usuário em 15 minutos |
+| 502 | ThingSpeak fora do ar, com erro (5xx), limitando o uso (429 dele) ou falha de rede. Nada foi salvo |
+| 504 | O ThingSpeak não respondeu em 5 segundos. Nada foi salvo |
+
+O agendador de leituras não usa esta configuração: ele continua lendo o canal definido em `THINGSPEAK_CHANNEL_ID` e `THINGSPEAK_READ_KEY`.
 
 ### Endpoints prontos: Logística
 
