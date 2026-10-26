@@ -2,7 +2,7 @@ const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
 // A chave de leitura do ThingSpeak e segredo: toda consulta de sensor deste arquivo a omite,
-// para ela nunca sair numa resposta. So a configuracao do ThingSpeak a le, pedindo explicitamente.
+// para ela nunca sair numa resposta. Só a configuração do ThingSpeak a lê, pedindo explicitamente.
 const SEM_READ_API_KEY = { readApiKey: true };
 
 async function listar(usuario) {
@@ -12,7 +12,6 @@ async function listar(usuario) {
       include: { lote: { include: { propriedade: true } } }
     });
   }
-
 
   if (usuario.perfil === "PRODUTOR") {
     return await prisma.sensor.findMany({
@@ -27,7 +26,6 @@ async function listar(usuario) {
       include: { lote: { include: { propriedade: true } } }
     });
   }
-
 
   if (usuario.perfil === "TECNICO") {
     const vinculos = await prisma.tecnicoPropriedade.findMany({
@@ -84,7 +82,7 @@ async function buscarPorId(id, usuario) {
 }
 
 async function criar(dados, usuario) {
-  // Apenas ADMIN e PRODUTOR podem criar (o middleware na rota já bloqueia técnico, mas validamos a lógica se necessário)
+  // Apenas ADMIN e PRODUTOR podem criar
   const lote = await prisma.lote.findUnique({
     where: { id: dados.loteId },
     include: { propriedade: true }
@@ -105,7 +103,24 @@ async function criar(dados, usuario) {
 }
 
 async function atualizar(id, dados, usuario) {
-  await buscarPorId(id, usuario); // Valida se existe e se tem permissão
+  // Valida se o sensor existe e se o usuário tem permissão para aceder
+  const sensorAtual = await buscarPorId(id, usuario);
+
+  // Se estiver a alterar o lote do sensor, valida o novo lote de destino
+  if (dados.loteId && Number(dados.loteId) !== sensorAtual.loteId) {
+    const novoLote = await prisma.lote.findUnique({
+      where: { id: Number(dados.loteId) },
+      include: { propriedade: true }
+    });
+
+    if (!novoLote) {
+      throw new Error("O lote de destino informado não existe.");
+    }
+
+    if (usuario.perfil === "PRODUTOR" && novoLote.propriedade.usuarioId !== usuario.id) {
+      throw new Error("Você não pode mover o sensor para um lote de outra propriedade.");
+    }
+  }
 
   return await prisma.sensor.update({
     where: { id: Number(id) },
@@ -115,16 +130,17 @@ async function atualizar(id, dados, usuario) {
 }
 
 async function remover(id, usuario) {
-  await buscarPorId(id, usuario); 
+  await buscarPorId(id, usuario); // Valida se existe e permissões
 
-  return await prisma.sensor.delete({
+  // Soft Delete: Inativa o sensor para preservar o histórico de leituras no banco de dados
+  return await prisma.sensor.update({
     where: { id: Number(id) },
+    data: { status: "INATIVO" },
     omit: SEM_READ_API_KEY
   });
 }
 
 async function listarLeiturasComFiltro(sensorId, periodo, usuario) {
-
   const sensor = await buscarPorId(sensorId, usuario);
   if (!sensor) {
     throw new Error("Sensor não encontrado ou sem permissão.");
