@@ -8,6 +8,123 @@ const router = Router();
 // Todas as rotas exigem login: cada usuario so ve os sensores das proprias propriedades.
 router.use(autenticar);
 
+router.get(
+  "/:id/indicadores",
+  async (req, res) => {
+    const prisma = require("../config/prisma");
+
+    const {
+      ErroHttp,
+    } = require("../middlewares/erros");
+
+    const {
+      validarId,
+    } = require("../validators/sensorValidator");
+
+    const {
+      validarFiltrosLeitura,
+    } = require("../validators/leituraValidator");
+
+    const {
+      garantirSensorVisivel,
+    } = require("../services/leituraService");
+
+    const {
+      calcular,
+    } = require("../services/riscoService");
+
+    const id = validarId(req.params.id);
+
+    await garantirSensorVisivel(
+      id,
+      req.usuario
+    );
+
+    const filtros = validarFiltrosLeitura({
+      ...(req.query.de || req.query.ate
+        ? {}
+        : { periodo: "24h" }),
+
+      ...req.query,
+    });
+
+    const bruto = req.query.temperaturaBase;
+
+    let temperaturaBase = null;
+
+    if (bruto !== undefined) {
+      if (
+        typeof bruto !== "string" ||
+        !/^-?\d+(\.\d+)?$/.test(bruto)
+      ) {
+        throw new ErroHttp(
+          400,
+          "temperaturaBase inválida."
+        );
+      }
+
+      temperaturaBase = Number(bruto);
+
+      if (
+        !Number.isFinite(temperaturaBase) ||
+        temperaturaBase < -10 ||
+        temperaturaBase > 60
+      ) {
+        throw new ErroHttp(
+          400,
+          "temperaturaBase deve estar entre -10 e 60."
+        );
+      }
+    }
+
+    const sensor =
+      await prisma.sensor.findUnique({
+        where: { id },
+
+        include: {
+          lote: {
+            include: {
+              cultura: true,
+            },
+          },
+        },
+      });
+
+    const leituras =
+      await prisma.leitura.findMany({
+        where: {
+          sensorId: id,
+
+          dataHoraLeitura: {
+            gte: filtros.de,
+            lte: filtros.ate,
+          },
+        },
+
+        orderBy: {
+          dataHoraLeitura: "asc",
+        },
+      });
+
+    const resultado = calcular(
+      leituras,
+      sensor.lote.cultura,
+      temperaturaBase
+    );
+
+    const {
+      alertas,
+      ...indicadores
+    } = resultado;
+
+    res.json({
+      sensorId: id,
+      ...indicadores,
+      regraVersao: "heuristica-v1",
+    });
+  }
+);
+
 // Criar, editar e apagar: so ADMIN e PRODUTOR. TECNICO (e perfil desconhecido) recebe 403.
 const podeAlterar = exigirPerfil("ADMIN", "PRODUTOR");
 

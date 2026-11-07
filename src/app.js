@@ -1,18 +1,43 @@
 require("dotenv").config({ quiet: true });
+
 const express = require("express");
 const cors = require("cors");
+
 const routes = require("./routes");
-const { rotaNaoEncontrada, tratarErros } = require("./middlewares/erros");
+const contexto = require("./config/contexto");
+
+const {
+  monitorar,
+} = require("./middlewares/monitoramento");
+
+const {
+  rotaNaoEncontrada,
+  tratarErros,
+} = require("./middlewares/erros");
 
 const app = express();
 
 app.disable("x-powered-by");
-// Atras do proxy do Render, confia em 3 saltos para enxergar o IP real de cada usuario.
-app.set("trust proxy", 3);
-app.use(cors({ origin: process.env.CORS_ORIGIN || false }));
+
+app.set(
+  "trust proxy",
+  Number(process.env.TRUST_PROXY_HOPS || 0)
+);
+
+app.use(monitorar);
+
+app.use((req, res, next) => {
+  contexto.run({ req }, next);
+});
+
+app.use(
+  cors({
+    origin: process.env.CORS_ORIGIN || false,
+  })
+);
+
 app.use(express.json({ limit: "100kb" }));
 
-// Todas as rotas entram aqui via /api
 app.use("/api", routes);
 
 app.use(rotaNaoEncontrada);

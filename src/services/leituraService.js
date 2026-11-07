@@ -13,29 +13,125 @@ const MAIOR_INT = 2147483647;
 // - recebidas: quantos feeds o ThingSpeak devolveu (validos + descartados);
 // - descartadas: feeds com campo vazio, nao numerico ou fora das faixas;
 // - gravadas: quantas leituras novas entraram no banco (as repetidas nao contam).
-async function sincronizarLeituras({ results, fetchImpl } = {}) {
-  const codigo = process.env.THINGSPEAK_SENSOR_CODIGO;
-  if (!codigo) throw new Error("A variável de ambiente THINGSPEAK_SENSOR_CODIGO não foi definida.");
+async function sincronizarLeituras({
+  results,
+  fetchImpl,
+} = {}) {
+  const sensores = await prisma.sensor.findMany({
+    where: {
+      status: "ATIVO",
 
-  // Confere o sensor antes de qualquer chamada de rede: sensor inexistente ou
-  // inativo nao recebe leitura, e nao vale gastar a requisicao a toa.
-  const sensor = await prisma.sensor.findUnique({ where: { codigo }, select: { id: true, status: true } });
-  if (!sensor) throw new Error(`O sensor "${codigo}" não foi encontrado.`);
-  if (sensor.status !== "ATIVO") throw new Error(`O sensor "${codigo}" não está ativo.`);
+      channelId: {
+        not: null,
+      },
 
-  const { leituras, descartadas } = await buscarLeituras({ results, fetchImpl });
-  const recebidas = leituras.length + descartadas;
+      readApiKey: {
+        not: null,
+      },
 
-  if (leituras.length === 0) return { recebidas, descartadas, gravadas: 0 };
+      lote: {
+        status: "ATIVO",
 
-  // skipDuplicates + @@unique([sensorId, dataHoraLeitura]): se o mesmo trecho for buscado de novo,
-  // o banco ignora as leituras que ja tem, em vez de duplicar ou dar erro.
-  const { count } = await prisma.leitura.createMany({
-    data: leituras.map((leitura) => ({ sensorId: sensor.id, ...leitura })),
-    skipDuplicates: true,
+        propriedade: {
+          status: "ATIVO",
+        },
+      },
+    },
+
+    select: {
+      id: true,
+      channelId: true,
+      readApiKey: true,
+    },
   });
 
-  return { recebidas, descartadas, gravadas: count };
+  // Compatibilidade com a configuração antiga.
+  if (
+    sensores.length === 0 &&
+    process.env.THINGSPEAK_SENSOR_CODIGO
+  ) {
+    const sensor = await prisma.sensor.findFirst({
+      where: {
+        codigo:
+          process.env.THINGSPEAK_SENSOR_CODIGO,
+
+        status: "ATIVO",
+
+        lote: {
+          status: "ATIVO",
+
+          propriedade: {
+            status: "ATIVO",
+          },
+        },
+      },
+
+      select: {
+        id: true,
+      },
+    });
+
+    if (sensor) {
+      sensores.push(sensor);
+    }
+  }
+
+  const resumo = {
+    recebidas: 0,
+    descartadas: 0,
+    gravadas: 0,
+    falhas: 0,
+  };
+
+  for (const sensor of sensores) {
+    try {
+      const resultado = await buscarLeituras({
+        ...sensor,
+        results,
+        fetchImpl,
+      });
+
+      resumo.recebidas +=
+        resultado.leituras.length +
+        resultado.descartadas;
+
+      resumo.descartadas +=
+        resultado.descartadas;
+
+      if (resultado.leituras.length > 0) {
+        const gravacao =
+          await prisma.leitura.createMany({
+            data: resultado.leituras.map(
+              (leitura) => ({
+                sensorId: sensor.id,
+                ...leitura,
+              })
+            ),
+
+            skipDuplicates: true,
+          });
+
+        resumo.gravadas += gravacao.count;
+      }
+
+      // Executa também nos retries, mesmo que
+      // todas as leituras já estejam gravadas.
+      await require("./riscoService").persistir(
+        sensor.id
+      );
+    } catch {
+      resumo.falhas++;
+
+      console.error(
+        JSON.stringify({
+          evento: "sincronizacao_falhou",
+          sensorId: sensor.id,
+        })
+      );
+    }
+  }
+
+  return resumo;
 }
 
 // ---------- Consulta (GET /api/leituras) ----------

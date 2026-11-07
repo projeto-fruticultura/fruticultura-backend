@@ -1,5 +1,8 @@
-const { PrismaClient } = require("@prisma/client");
-const prisma = new PrismaClient();
+const prisma = require("../config/prisma");
+
+const {
+  ErroHttp,
+} = require("../middlewares/erros");
 
 // A chave de leitura do ThingSpeak e segredo: toda consulta de sensor deste arquivo a omite,
 // para ela nunca sair numa resposta. Só a configuração do ThingSpeak a lê, pedindo explicitamente.
@@ -29,7 +32,7 @@ async function listar(usuario) {
 
   if (usuario.perfil === "TECNICO") {
     const vinculos = await prisma.tecnicoPropriedade.findMany({
-      where: { tecnicoId: usuario.id },
+      where: { usuarioId: usuario.id },
       select: { propriedadeId: true }
     });
     const propriedadeIds = vinculos.map(v => v.propriedadeId);
@@ -140,67 +143,79 @@ async function remover(id, usuario) {
   });
 }
 
-async function listarLeiturasComFiltro(sensorId, periodo, usuario) {
-  const sensor = await buscarPorId(sensorId, usuario);
-  if (!sensor) {
-    throw new Error("Sensor não encontrado ou sem permissão.");
-  }
+async function listarLeiturasComFiltro(
+  sensorId,
+  periodo = "24h",
+  usuario,
+  query = {}
+) {
+  await buscarPorId(sensorId, usuario);
 
-  const agora = new Date();
-  let dataInicial = new Date();
+  const {
+    validarFiltrosLeitura,
+  } = require("../validators/leituraValidator");
 
-  // Tratamento dos períodos solicitados
-  if (periodo === "7d") {
-    dataInicial.setDate(agora.getDate() - 7);
-  } else if (periodo === "30d") {
-    dataInicial.setDate(agora.getDate() - 30);
-  } else {
-    // Padrão: 24h
-    dataInicial.setHours(agora.getHours() - 24);
-  }
-
-  const leituras = await prisma.leitura.findMany({
-    where: {
-      sensorId: Number(sensorId),
-      criadoEm: {
-        gte: dataInicial,
-        lte: agora
-      }
-    },
-    orderBy: {
-      criadoEm: "asc"
-    }
+  const filtros = validarFiltrosLeitura({
+    ...query,
+    periodo,
+    sensorId: String(sensorId),
   });
 
-  // Cálculo real das agregações estatísticas com base nos dados reais recolhidos
-  let estatisticas = {
-    temperaturaMedia: 0,
-    temperaturaMin: 0,
-    temperaturaMax: 0,
-    umidadeMedia: 0,
-    umidadeMin: 0,
-    umidadeMax: 0,
-    totalLeituras: leituras.length
+  const historico =
+    await require("./leituraService").listar(
+      usuario,
+      filtros
+    );
+
+  const agregado =
+    await prisma.leitura.aggregate({
+      where: {
+        sensorId,
+
+        dataHoraLeitura: {
+          gte: filtros.de,
+          lte: filtros.ate,
+        },
+      },
+
+      _avg: {
+        temperatura: true,
+        umidade: true,
+      },
+
+      _min: {
+        temperatura: true,
+        umidade: true,
+      },
+
+      _max: {
+        temperatura: true,
+        umidade: true,
+      },
+
+      _count: true,
+    });
+
+  const estatisticas = {
+    totalLeituras: agregado._count,
   };
 
-  if (leituras.length > 0) {
-    const somaTemp = leituras.reduce((acc, l) => acc + Number(l.temperatura || 0), 0);
-    const somaUmi = leituras.reduce((acc, l) => acc + Number(l.umidade || 0), 0);
-    const temps = leituras.map(l => Number(l.temperatura || 0));
-    const umidades = leituras.map(l => Number(l.umidade || 0));
+  for (const campo of ["temperatura", "umidade"]) {
+    estatisticas[`${campo}Media`] =
+      agregado._avg[campo];
 
-    estatisticas.temperaturaMedia = Number((somaTemp / leituras.length).toFixed(2));
-    estatisticas.temperaturaMin = Math.min(...temps);
-    estatisticas.temperaturaMax = Math.max(...temps);
-    estatisticas.umidadeMedia = Number((somaUmi / leituras.length).toFixed(2));
-    estatisticas.umidadeMin = Math.min(...umidades);
-    estatisticas.umidadeMax = Math.max(...umidades);
+    estatisticas[`${campo}Min`] =
+      agregado._min[campo];
+
+    estatisticas[`${campo}Max`] =
+      agregado._max[campo];
   }
 
   return {
-    periodoSelecionado: periodo || "24h",
+    periodoSelecionado: periodo,
     estatisticas,
-    leituras
+    leituras: historico.dados,
+    paginacao: historico.paginacao,
   };
 }
 

@@ -11,7 +11,73 @@ const mercadoRoutes = require('./mercadoRoutes.js'); // Importa aqui
 const authRoutes = require('./authRoutes');
 const usuarioRoutes = require('./usuarioRoutes');
 
+const prisma = require("../config/prisma");
+
+const {
+  autenticar,
+  exigirPerfil,
+} = require("../middlewares/autenticar");
+
+const {
+  ErroHttp,
+} = require("../middlewares/erros");
+
+const {
+  lerInteiro,
+} = require("../validators/leituraValidator");
+
+const {
+  metricas,
+} = require("../middlewares/monitoramento");
+
 const routes = Router();
+
+routes.get(
+  "/metricas",
+  autenticar,
+  exigirPerfil("ADMIN"),
+
+  (req, res) => {
+    res.json(metricas());
+  }
+);
+
+routes.get(
+  "/auditoria",
+  autenticar,
+  exigirPerfil("ADMIN"),
+
+  async (req, res) => {
+    const pagina =
+      req.query.pagina === undefined
+        ? 1
+        : lerInteiro(
+            req.query.pagina,
+            1,
+            1_000_000
+          );
+
+    if (!pagina) {
+      throw new ErroHttp(
+        400,
+        "Página inválida."
+      );
+    }
+
+    const registros =
+      await prisma.auditoria.findMany({
+        orderBy: {
+          id: "desc",
+        },
+
+        take: 50,
+        skip: (pagina - 1) * 50,
+      });
+
+    res.json(registros);
+  }
+);
+
 
 routes.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok' });

@@ -4,7 +4,51 @@ const { autenticar, exigirPerfil } = require("../middlewares/autenticar");
 
 const router = Router();
 
-// Todas as rotas exigem login: cada usuario so ve os lotes das proprias propriedades.
+router.post(
+  "/:id/recomendacoes",
+  exigirPerfil("ADMIN", "TECNICO"),
+
+  async (req, res) => {
+    const prisma = require("../config/prisma");
+
+    const {
+      validarId,
+    } = require("../validators/propriedadeValidator");
+
+    const {
+      garantirLoteVisivel,
+    } = require("../services/leituraService");
+
+    const {
+      recomendar,
+    } = require("../services/recomendacaoService");
+
+    const id = validarId(req.params.id);
+
+    await garantirLoteVisivel(
+      id,
+      req.usuario
+    );
+
+    const lote =
+      await prisma.lote.findUnique({
+        where: { id },
+
+        select: {
+          faseFenologica: true,
+        },
+      });
+
+    res.json(
+      recomendar(
+        req.body,
+        lote.faseFenologica
+      )
+    );
+  }
+);
+
+
 router.use(autenticar);
 
 // Criar, editar e apagar: so ADMIN e PRODUTOR. TECNICO (e perfil desconhecido) recebe 403.
