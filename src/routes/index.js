@@ -88,6 +88,7 @@ routes.use('/propriedades', propriedadeRoutes);
 routes.use('/sensores', sensorRoutes);
 // Exige login; CRUD completo (GET, POST, PUT e DELETE com exclusao logica) so nos lotes das propriedades do usuario.
 routes.use('/lotes', loteRoutes);
+routes.use("/lotes", require("./janelaRoutes"));
 // So consulta; exige login e mostra so as leituras dos sensores das propriedades do usuario.
 routes.use('/leituras', leituraRoutes);
 // Exige login; mostra e altera so as rotas logisticas das propriedades do usuario (exclusao logica no DELETE).

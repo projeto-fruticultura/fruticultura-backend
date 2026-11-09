@@ -4,20 +4,19 @@
   "description": "Backend principal da plataforma de monitoramento climático e logístico da fruticultura do Vale do São Francisco.",
   "main": "src/server.js",
   "scripts": {
-    "dev": "nodemon src/server.js",
-    "start": "npx prisma migrate deploy && node src/server.js",
-    "postinstall": "prisma generate",
-    "db:testar": "prisma db pull --print",
-    "db:migrar": "prisma migrate dev",
-    "db:seed": "node prisma/seed.js",
-    "db:teste:migrar": "dotenv -e .env.teste -- prisma migrate deploy",
-    "db:teste:seed": "dotenv -e .env.teste -- node prisma/seed.js",
-    "dev:teste": "dotenv -e .env.teste -- nodemon src/server.js",
-    "test": "jest --runInBand",
-    "test:unit": "jest --runInBand tests/regras.test.js",
-    "test:api": "jest --runInBand tests/api.test.js",
-    "check": "prisma validate",
-    "build": "prisma generate"
+"dev": "nodemon src/server.js",
+  "start": "node src/server.js",
+  "postinstall": "prisma generate",
+
+  "db:testar": "prisma db pull --print",
+  "db:migrar": "prisma migrate dev",
+  "db:seed": "node prisma/seed.js",
+
+  "test": "jest --runInBand",
+  "test:unit": "jest --runInBand tests/regras.test.js tests/janelas.test.js",
+  "test:api": "jest --runInBand tests/api.test.js",
+  "check": "prisma validate",
+  "build": "prisma generate"
   },
   "keywords": [],
   "author": "",
