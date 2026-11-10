@@ -30,9 +30,14 @@ app.use((req, res, next) => {
   contexto.run({ req }, next);
 });
 
+const origensPermitidas = (process.env.CORS_ORIGIN || "")
+  .split(",")
+  .map((origem) => origem.trim())
+  .filter(Boolean);
+
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN || false,
+    origin: origensPermitidas,
   })
 );
 
