@@ -4,6 +4,8 @@ const { autenticar, exigirPerfil } = require("../middlewares/autenticar");
 
 const router = Router();
 
+router.use(autenticar);
+
 router.post(
   "/:id/recomendacoes",
   exigirPerfil("ADMIN", "TECNICO"),
@@ -48,8 +50,6 @@ router.post(
   }
 );
 
-
-router.use(autenticar);
 
 // Criar, editar e apagar: so ADMIN e PRODUTOR. TECNICO (e perfil desconhecido) recebe 403.
 const podeAlterar = exigirPerfil("ADMIN", "PRODUTOR");
