@@ -23,22 +23,24 @@ Guia do backend (como rodar, regras do banco e padrão das tarefas): [docs/GUIA-
 
 Disponibilizar uma API segura e organizada para conectar:
 
-- frontend hospedado no Netlify;
+- frontend hospedado na Vercel;
 - simulação IoT executada no Wokwi;
 - NASA POWER API;
-- banco PostgreSQL hospedado no Render até a 1ª entrega (13/10/2026) e, depois, na AWS.
+- banco PostgreSQL no Amazon RDS (AWS), ambiente da 2ª entrega.
 
 ## Arquitetura
 
 ```text
-Frontend no Netlify
+Frontend na Vercel
         ↕ HTTPS/REST/JSON
-Backend Node.js no Render
+Amazon CloudFront (HTTPS)
+        ↕ HTTP, porta 3000
+Backend Node.js na AWS (EC2)
         ↕ Prisma ORM
-PostgreSQL (Render até a 1ª entrega; depois AWS)
+PostgreSQL no Amazon RDS (rede privada)
 ```
 
-O banco fica no Render até a 1ª entrega (13/10/2026); o plano gratuito do Render expira em 20/10/2026. Depois da 1ª entrega, o banco vai para a AWS, conforme a 2ª entrega (08/12/2026).
+Até a 1ª entrega o backend ficava no Render. Na 2ª entrega ele foi para a AWS (detalhes na seção [Deploy](#deploy)); a versão anterior no Render continua no ar durante a transição.
 
 Fontes de dados:
 
@@ -59,7 +61,8 @@ Diagrama completo da arquitetura (sensor, ThingSpeak, API e banco): [docs/arquit
 - JWT;
 - bcrypt;
 - NASA POWER API;
-- Render;
+- AWS (EC2, RDS, CloudFront e Systems Manager);
+- Render (versão anterior);
 - Git e GitHub;
 - ferramenta de testes a definir.
 
@@ -1007,7 +1010,8 @@ O `.env` fica na raiz do projeto e **nunca vai para o Git** (está no `.gitignor
 |---|---|---|
 | `DATABASE_URL` | **Obrigatória.** Endereço de conexão com o PostgreSQL, lido pelo Prisma (`schema.prisma`). | `postgresql://USUARIO:SENHA@HOST/NOME_DO_BANCO?sslmode=require` |
 | `PORT` | Opcional. Porta em que o servidor sobe. Se faltar, usa 3000. | `3000` |
-| `CORS_ORIGIN` | Opcional. Única origem (endereço do frontend) que pode chamar a API pelo navegador. Se faltar, nenhuma origem externa é liberada. | `http://localhost:5173` |
+| `CORS_ORIGIN` | Opcional. Origens (endereços do frontend) que podem chamar a API pelo navegador; para mais de uma, separe por vírgula. Se faltar, nenhuma origem externa é liberada. | `http://localhost:5173` |
+| `TRUST_PROXY_HOPS` | Opcional. Quantos proxies existem na frente da API (na AWS, o CloudFront, então `1`). Se faltar, usa 0. | `1` |
 | `JWT_SECRET` | **Obrigatória.** Chave que assina os tokens de login. Mínimo de 32 caracteres; sem ela, o servidor não sobe. | gerada pelo comando abaixo |
 | `JWT_EXPIRES_IN` | Opcional. Validade do token, com unidade (`30m`, `2h`, `1d`). Se faltar, usa `2h`. | `2h` |
 | `SEED_ADMIN_EMAIL` | Obrigatória só para rodar o seed. E-mail do usuário ADMIN criado pelo seed. Só o seed usa: a API não depende mais dele (o dono de uma propriedade é o usuário logado). | `admin@valesafra.local` |
@@ -1039,9 +1043,44 @@ Ainda não há testes automatizados (não existe o script `npm test`). Os endpoi
 
 ## Deploy
 
-O backend será publicado no Render.
+### Ambiente na AWS (2ª entrega)
 
-O PostgreSQL fica no Render até a 1ª entrega (13/10/2026); o plano gratuito do Render expira em 20/10/2026. Depois disso, o banco vai para a AWS, conforme a 2ª entrega (08/12/2026).
+```text
+Vercel (frontend) → CloudFront → EC2 (API) → RDS (PostgreSQL)
+```
+
+URL pública da API: `https://d2nmqrbqvtvva2.cloudfront.net/api`. Região: `us-east-1`.
+
+| Serviço | Papel |
+|---|---|
+| Amazon EC2 (`valesafra-backend`, Ubuntu 24.04, `t3.small`) | Roda a API Node.js, mantida pelo pm2 (reinicia se cair). |
+| Amazon RDS (`valesafra-db`, PostgreSQL, `db.t4g.micro`) | Banco de dados, sem acesso público: só a EC2 alcança, por regra de security group. Criptografado, com backup automático e proteção contra exclusão. |
+| Amazon CloudFront (`valesafra-api`) | Entrega a API em HTTPS. O frontend na Vercel usa HTTPS e não pode chamar uma API em HTTP. |
+| AWS Systems Manager (Session Manager) | Acesso administrativo à EC2 sem abrir a porta SSH. |
+| Security groups | A porta 3000 da EC2 só aceita o CloudFront; o RDS só aceita a EC2. |
+
+Os segredos (`DATABASE_URL`, `JWT_SECRET` e demais) ficam em um arquivo de variáveis **fora do repositório**, no servidor, carregado ao iniciar a API. Nunca vão para o Git, para este README ou para o chat.
+
+### Atualizar a API na EC2 (manual, sem pipeline automático)
+
+1. Conectar à EC2 pelo Session Manager (console da AWS).
+2. Na pasta do projeto: `git pull` e `npm install`.
+3. Migrations novas, se houver: somente `npx prisma migrate deploy`, depois de revisar. **Nunca** `migrate reset`, `migrate dev` nem `db push` no banco de produção.
+4. Reiniciar a API: `pm2 restart valesafra-api`.
+5. Testar: fazer login pelo frontend e conferir se os dados aparecem.
+
+Se o frontend estiver em um endereço novo, inclua esse endereço no `CORS_ORIGIN` do servidor e reinicie a API; sem isso o navegador bloqueia o login (erro de CORS).
+
+### Limitações conhecidas
+
+- O trecho CloudFront → EC2 usa HTTP (o tráfego do usuário até o CloudFront é HTTPS). Uma melhoria futura é colocar HTTPS também na EC2.
+- Há uma única instância de API e um único banco, sem Multi-AZ; o backup automático guarda 1 dia.
+- A EC2 não tem IP fixo: se for parada e iniciada, o endereço público muda e a origem do CloudFront precisa ser atualizada.
+- O deploy é manual.
+
+### Versão anterior (Render)
+
+O backend também roda no Render, com o PostgreSQL no Neon. Essa versão foi a base da 1ª entrega e continua no ar durante a transição.
 
 ## Padrão de contribuição
 
