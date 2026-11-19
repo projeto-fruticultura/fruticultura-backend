@@ -1,101 +1,225 @@
 const { ErroHttp } = require("../middlewares/erros");
-// Mesmos limites do login, importados para nao manter duas copias.
-const { EMAIL_MAXIMO, SENHA_MAXIMO_BYTES } = require("./authValidator");
-// Mesma validacao de :id das outras rotas, importada para nao manter duas copias.
-const { validarId } = require("./propriedadeValidator");
+
+const {
+  EMAIL_MAXIMO,
+  SENHA_MAXIMO_BYTES,
+} = require("./authValidator");
+
+const {
+  validarId,
+} = require("./propriedadeValidator");
 
 const NOME_MAXIMO = 150;
 const SENHA_MINIMO_BYTES = 8;
-// Limite por chamada do vinculo tecnico/propriedade: um tecnico com mais que isso e irreal no MVP,
-// e o limite evita uma consulta enorme.
 const PROPRIEDADE_IDS_MAXIMO = 100;
-const MAIOR_ID = 2147483647; // Int do Postgres
+const MAIOR_ID = 2147483647;
+
 const PERFIS = ["PRODUTOR", "TECNICO", "ADMIN"];
-// Formato simples (algo@algo.algo): confirma que parece um e-mail, sem tentar cobrir a RFC inteira.
 const FORMATO_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// Valida o corpo do POST (modo "criar") ou do PUT (modo "atualizar").
-// Devolve nome, email, senha e perfil no cadastro; na edicao, so nome, email e perfil.
-// status, id e qualquer outro campo sao ignorados: o usuario sempre nasce ATIVO,
-// e o cliente nunca escolhe campos de controle. A senha tambem nao muda pelo PUT.
-// No PUT tudo e opcional: o que for omitido mantem o valor salvo (null ou "" continuam sendo erro).
 function validarUsuario(corpo, modo = "criar") {
-  if (!corpo || typeof corpo !== "object" || Array.isArray(corpo)) {
-    throw new ErroHttp(400, "Envie os dados do usuário em JSON.");
+  if (
+    !corpo ||
+    typeof corpo !== "object" ||
+    Array.isArray(corpo)
+  ) {
+    throw new ErroHttp(
+      400,
+      "Envie os dados do usuário em JSON."
+    );
   }
 
   const criar = modo === "criar";
   const campos = {};
-  const { nome, email, senha, perfil } = corpo;
-  // Campo omitido so e aceito na edicao.
-  const pular = (valor) => !criar && valor === undefined;
+
+  const {
+    nome,
+    email,
+    senha,
+    perfil,
+    status,
+  } = corpo;
+
+  const pular = (valor) =>
+    !criar && valor === undefined;
 
   if (!pular(nome)) {
-    if (nome === undefined || nome === null || nome === "") campos.nome = "nome é obrigatório.";
-    else if (typeof nome !== "string") campos.nome = "nome deve ser um texto.";
-    else if (!nome.trim()) campos.nome = "nome é obrigatório.";
-    else if (nome.trim().length > NOME_MAXIMO) campos.nome = `nome deve ter no máximo ${NOME_MAXIMO} caracteres.`;
+    if (
+      nome === undefined ||
+      nome === null ||
+      nome === ""
+    ) {
+      campos.nome = "nome é obrigatório.";
+    } else if (typeof nome !== "string") {
+      campos.nome = "nome deve ser um texto.";
+    } else if (!nome.trim()) {
+      campos.nome = "nome é obrigatório.";
+    } else if (nome.trim().length > NOME_MAXIMO) {
+      campos.nome =
+        `nome deve ter no máximo ${NOME_MAXIMO} caracteres.`;
+    }
   }
 
   if (!pular(email)) {
-    if (email === undefined || email === null || email === "") campos.email = "email é obrigatório.";
-    else if (typeof email !== "string") campos.email = "email deve ser um texto.";
-    else if (email.trim().length > EMAIL_MAXIMO) campos.email = `email deve ter no máximo ${EMAIL_MAXIMO} caracteres.`;
-    else if (!FORMATO_EMAIL.test(email.trim())) campos.email = "email deve ter um formato válido (ex.: nome@dominio.com).";
+    if (
+      email === undefined ||
+      email === null ||
+      email === ""
+    ) {
+      campos.email = "email é obrigatório.";
+    } else if (typeof email !== "string") {
+      campos.email = "email deve ser um texto.";
+    } else if (email.trim().length > EMAIL_MAXIMO) {
+      campos.email =
+        `email deve ter no máximo ${EMAIL_MAXIMO} caracteres.`;
+    } else if (!FORMATO_EMAIL.test(email.trim())) {
+      campos.email = "email deve ter um formato válido.";
+    }
   }
 
-  // Medida em bytes pelo mesmo motivo do login: o bcrypt ignora o que passa de 72 bytes.
   if (criar) {
-    if (senha === undefined || senha === null || senha === "") campos.senha = "senha é obrigatória.";
-    else if (typeof senha !== "string") campos.senha = "senha deve ser um texto.";
-    else {
+    if (
+      senha === undefined ||
+      senha === null ||
+      senha === ""
+    ) {
+      campos.senha = "senha é obrigatória.";
+    } else if (typeof senha !== "string") {
+      campos.senha = "senha deve ser um texto.";
+    } else {
       const bytes = Buffer.byteLength(senha, "utf8");
-      if (bytes < SENHA_MINIMO_BYTES || bytes > SENHA_MAXIMO_BYTES) {
-        campos.senha = `senha deve ter entre ${SENHA_MINIMO_BYTES} e ${SENHA_MAXIMO_BYTES} bytes.`;
+
+      if (
+        bytes < SENHA_MINIMO_BYTES ||
+        bytes > SENHA_MAXIMO_BYTES
+      ) {
+        campos.senha =
+          `senha deve ter entre ${SENHA_MINIMO_BYTES} e ` +
+          `${SENHA_MAXIMO_BYTES} bytes.`;
       }
     }
   }
 
   if (!pular(perfil)) {
-    if (perfil === undefined || perfil === null || perfil === "") campos.perfil = "perfil é obrigatório.";
-    else if (!PERFIS.includes(perfil)) campos.perfil = `perfil deve ser um destes: ${PERFIS.join(", ")}.`;
+    if (
+      perfil === undefined ||
+      perfil === null ||
+      perfil === ""
+    ) {
+      campos.perfil = "perfil é obrigatório.";
+    } else if (!PERFIS.includes(perfil)) {
+      campos.perfil =
+        `perfil deve ser um destes: ${PERFIS.join(", ")}.`;
+    }
+  }
+
+  // A inativação continua sendo feita pelo DELETE.
+  // O PUT permite somente a reativação.
+  if (
+    !criar &&
+    status !== undefined &&
+    status !== "ATIVO"
+  ) {
+    campos.status =
+      'Use status "ATIVO" para reativar. ' +
+      "Para inativar, use DELETE.";
   }
 
   if (Object.keys(campos).length > 0) {
-    throw new ErroHttp(400, "Dados inválidos.", campos);
+    throw new ErroHttp(
+      400,
+      "Dados inválidos.",
+      campos
+    );
   }
 
   const dados = {
-    nome: nome === undefined ? undefined : nome.trim(),
-    // Minusculas: o login busca o e-mail em minusculas, e o Postgres diferencia maiusculas.
-    email: email === undefined ? undefined : email.trim().toLowerCase(),
+    nome:
+      nome === undefined
+        ? undefined
+        : nome.trim(),
+
+    email:
+      email === undefined
+        ? undefined
+        : email.trim().toLowerCase(),
+
     perfil,
   };
-  if (criar) return { ...dados, senha };
 
-  // Na edicao, remove o que nao veio: undefined nao pode virar "limpar o campo".
-  return Object.fromEntries(Object.entries(dados).filter(([, valor]) => valor !== undefined));
+  // O cadastro utiliza o status padrão do banco.
+  if (criar) {
+    return {
+      ...dados,
+      senha,
+    };
+  }
+
+  if (status !== undefined) {
+    dados.status = status;
+  }
+
+  return Object.fromEntries(
+    Object.entries(dados).filter(
+      ([, valor]) => valor !== undefined
+    )
+  );
 }
 
-// Valida o corpo do PUT /usuarios/:id/propriedades e devolve os ids sem repetidos.
-// So numeros inteiros positivos valem (texto como "1" e recusado), e o limite conta depois de tirar os repetidos.
 function validarPropriedadeIds(corpo) {
-  if (!corpo || typeof corpo !== "object" || Array.isArray(corpo)) {
-    throw new ErroHttp(400, "Envie os dados em JSON.");
+  if (
+    !corpo ||
+    typeof corpo !== "object" ||
+    Array.isArray(corpo)
+  ) {
+    throw new ErroHttp(
+      400,
+      "Envie os dados em JSON."
+    );
   }
 
   const { propriedadeIds } = corpo;
   let erro = null;
-  if (propriedadeIds === undefined || propriedadeIds === null) erro = "propriedadeIds é obrigatório.";
-  else if (!Array.isArray(propriedadeIds)) erro = "propriedadeIds deve ser uma lista de ids.";
-  else if (!propriedadeIds.every((id) => Number.isInteger(id) && id >= 1 && id <= MAIOR_ID)) {
-    erro = "propriedadeIds deve conter só números inteiros positivos.";
-  } else if (new Set(propriedadeIds).size > PROPRIEDADE_IDS_MAXIMO) {
-    erro = `propriedadeIds deve ter no máximo ${PROPRIEDADE_IDS_MAXIMO} ids.`;
+
+  if (
+    propriedadeIds === undefined ||
+    propriedadeIds === null
+  ) {
+    erro = "propriedadeIds é obrigatório.";
+  } else if (!Array.isArray(propriedadeIds)) {
+    erro = "propriedadeIds deve ser uma lista de ids.";
+  } else if (
+    !propriedadeIds.every(
+      (id) =>
+        Number.isInteger(id) &&
+        id >= 1 &&
+        id <= MAIOR_ID
+    )
+  ) {
+    erro =
+      "propriedadeIds deve conter só números inteiros positivos.";
+  } else if (
+    new Set(propriedadeIds).size >
+    PROPRIEDADE_IDS_MAXIMO
+  ) {
+    erro =
+      `propriedadeIds deve ter no máximo ` +
+      `${PROPRIEDADE_IDS_MAXIMO} ids.`;
   }
-  if (erro) throw new ErroHttp(400, "Dados inválidos.", { propriedadeIds: erro });
+
+  if (erro) {
+    throw new ErroHttp(
+      400,
+      "Dados inválidos.",
+      { propriedadeIds: erro }
+    );
+  }
 
   return [...new Set(propriedadeIds)];
 }
 
-module.exports = { validarUsuario, validarId, validarPropriedadeIds };
+module.exports = {
+  validarUsuario,
+  validarId,
+  validarPropriedadeIds,
+};
