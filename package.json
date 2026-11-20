@@ -4,20 +4,21 @@
   "description": "Backend principal da plataforma de monitoramento climático e logístico da fruticultura do Vale do São Francisco.",
   "main": "src/server.js",
   "scripts": {
-  "dev": "nodemon src/server.js",
-  "start": "node src/server.js",
-  "postinstall": "prisma generate",
-  "db:testar": "prisma db pull --print",
-  "db:migrar": "prisma migrate dev",
-  "db:seed": "node prisma/seed.js",
-  "db:deploy": "prisma migrate deploy",
-  "test": "jest --runInBand",
-  "test:unit": "jest --runInBand tests/regras.test.js tests/modeloPython.test.js tests/novasRegras.test.js tests/riscoPersistencia.test.js",
-  "test:api": "jest --runInBand tests/api.test.js tests/recomendacoes.test.js tests/logisticaComparacao.test.js tests/refrigeracao.test.js tests/mercadoContrato.test.js tests/seguranca.test.js",
-  "check": "prisma validate",
-  "build": "prisma generate",
-  "security:check": "python scripts/verificarSegredos.py",
-  "security:history": "python scripts/verificarSegredos.py --historico"
+    "dev": "nodemon src/server.js",
+    "start": "node src/server.js",
+    "postinstall": "prisma generate",
+    "db:testar": "prisma db pull --print",
+    "db:migrar": "prisma migrate dev",
+    "db:seed": "node prisma/seed.js",
+    "db:deploy": "prisma migrate deploy",
+    "test": "jest --runInBand",
+    "test:unit": "jest --runInBand tests/regras.test.js tests/modeloPython.test.js tests/novasRegras.test.js tests/riscoPersistencia.test.js tests/cotacoesJanela.test.js tests/dependenciasSeguranca.test.js",
+    "test:api": "jest --runInBand tests/api.test.js tests/recomendacoes.test.js tests/logisticaComparacao.test.js tests/refrigeracao.test.js tests/mercadoContrato.test.js tests/seguranca.test.js tests/cotacoesMercado.test.js",
+    "check": "prisma validate",
+    "build": "prisma generate",
+    "security:check": "python scripts/verificarSegredos.py",
+    "security:history": "python scripts/verificarSegredos.py --historico",
+    "security:audit": "npm audit --audit-level=moderate"
   },
   "keywords": [],
   "author": "",
@@ -42,5 +43,17 @@
   },
   "prisma": {
     "seed": "node prisma/seed.js"
+  },
+  "overrides": {
+    "@prisma/config": {
+      "deepmerge-ts": "8.0.0",
+      "effect": "3.22.1"
+    },
+    "glob": "14.0.6",
+    "minimatch": "11.0.9",
+    "ip-address": "10.7.6"
+  },
+  "engines": {
+    "node": ">=22.12.0"
   }
 }

@@ -1,15 +1,18 @@
-const { Router } = require('express');
-const culturaRoutes = require('./culturaRoutes');
-const propriedadeRoutes = require('./propriedadeRoutes');
-const sensorRoutes = require('./sensorRoutes');
-const loteRoutes = require('./loteRoutes');
-const leituraRoutes = require('./leituraRoutes');
-const logisticaRoutes = require('./logisticaRoutes');
-const alertaRoutes = require('./alertaRoutes');
-const dashboardRoutes = require('./dashboardRoutes');
-const mercadoRoutes = require('./mercadoRoutes.js'); // Importa aqui
-const authRoutes = require('./authRoutes');
-const usuarioRoutes = require('./usuarioRoutes');
+const { Router } = require("express");
+
+const culturaRoutes = require("./culturaRoutes");
+const propriedadeRoutes = require("./propriedadeRoutes");
+const sensorRoutes = require("./sensorRoutes");
+const loteRoutes = require("./loteRoutes");
+const janelaRoutes = require("./janelaRoutes");
+const leituraRoutes = require("./leituraRoutes");
+const logisticaRoutes = require("./logisticaRoutes");
+const alertaRoutes = require("./alertaRoutes");
+const dashboardRoutes = require("./dashboardRoutes");
+const mercadoRoutes = require("./mercadoRoutes");
+const cotacaoMercadoRoutes = require("./cotacaoMercadoRoutes");
+const authRoutes = require("./authRoutes");
+const usuarioRoutes = require("./usuarioRoutes");
 
 const prisma = require("../config/prisma");
 
@@ -18,9 +21,7 @@ const {
   exigirPerfil,
 } = require("../middlewares/autenticar");
 
-const {
-  ErroHttp,
-} = require("../middlewares/erros");
+const { ErroHttp } = require("../middlewares/erros");
 
 const {
   lerInteiro,
@@ -32,21 +33,21 @@ const {
 
 const routes = Router();
 
+// Métricas de execução: somente ADMIN.
 routes.get(
   "/metricas",
   autenticar,
   exigirPerfil("ADMIN"),
-
   (req, res) => {
     res.json(metricas());
   }
 );
 
+// Histórico de auditoria: somente ADMIN.
 routes.get(
   "/auditoria",
   autenticar,
   exigirPerfil("ADMIN"),
-
   async (req, res) => {
     const pagina =
       req.query.pagina === undefined
@@ -64,44 +65,49 @@ routes.get(
       );
     }
 
-    const registros =
-      await prisma.auditoria.findMany({
-        orderBy: {
-          id: "desc",
-        },
-
-        take: 50,
-        skip: (pagina - 1) * 50,
-      });
+    const registros = await prisma.auditoria.findMany({
+      orderBy: {
+        id: "desc",
+      },
+      take: 50,
+      skip: (pagina - 1) * 50,
+    });
 
     res.json(registros);
   }
 );
 
-
-routes.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok' });
+// Verificação pública de disponibilidade.
+routes.get("/health", (req, res) => {
+  res.status(200).json({
+    status: "ok",
+  });
 });
 
-routes.use('/culturas', culturaRoutes);
-routes.use('/propriedades', propriedadeRoutes);
-routes.use('/sensores', sensorRoutes);
-// Exige login; CRUD completo (GET, POST, PUT e DELETE com exclusao logica) so nos lotes das propriedades do usuario.
-routes.use('/lotes', loteRoutes);
-routes.use("/lotes", require("./janelaRoutes"));
-// So consulta; exige login e mostra so as leituras dos sensores das propriedades do usuario.
-routes.use('/leituras', leituraRoutes);
-// Exige login; mostra e altera so as rotas logisticas das propriedades do usuario (exclusao logica no DELETE).
-routes.use('/logistica', logisticaRoutes);
-// So consulta; exige login e calcula os alertas pela ultima leitura dos sensores das propriedades do usuario.
-routes.use('/alertas', alertaRoutes);
-// So consulta; exige login e calcula resumo e medias das leituras dos sensores das propriedades do usuario (dono filtrado no service).
-routes.use('/dashboard', dashboardRoutes);
-routes.use('/precos', mercadoRoutes); // <--- Tem de estar assim: /precos
-// Login publico; /me e /logout exigem token.
-// /propriedades, /sensores, /lotes, /leituras, /logistica, /alertas e /dashboard tambem exigem token. /culturas: GET aberto, POST/PUT/DELETE so ADMIN. /precos continua aberta por enquanto.
-routes.use('/auth', authRoutes);
-// So ADMIN logado cria usuarios (a protecao fica no proprio usuarioRoutes).
-routes.use('/usuarios', usuarioRoutes);
+// As permissões específicas ficam nos respectivos routers.
+routes.use("/culturas", culturaRoutes);
+routes.use("/propriedades", propriedadeRoutes);
+routes.use("/sensores", sensorRoutes);
+
+routes.use("/lotes", loteRoutes);
+routes.use("/lotes", janelaRoutes);
+
+routes.use("/leituras", leituraRoutes);
+routes.use("/logistica", logisticaRoutes);
+routes.use("/alertas", alertaRoutes);
+routes.use("/dashboard", dashboardRoutes);
+
+// Consulta pública de preços da CONAB.
+routes.use("/precos", mercadoRoutes);
+
+// Cotações cadastradas: consulta autenticada;
+// criação, alteração e exclusão somente por ADMIN.
+routes.use("/mercado/cotacoes", cotacaoMercadoRoutes);
+
+// Login público; demais permissões definidas no authRoutes.
+routes.use("/auth", authRoutes);
+
+// Gestão de usuários protegida no usuarioRoutes.
+routes.use("/usuarios", usuarioRoutes);
 
 module.exports = routes;

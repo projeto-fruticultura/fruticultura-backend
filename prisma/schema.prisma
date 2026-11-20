@@ -13,7 +13,7 @@ enum Perfil {
   ADMIN
 }
 
-enum Status {4
+enum Status {
   ATIVO
   INATIVO
 }
@@ -23,6 +23,11 @@ enum FaseFenologica {
   FLORACAO_PANICULA
   FRUTIFICACAO
   MATURACAO
+}
+
+enum DestinoMercado {
+  INTERNO
+  EXPORTACAO
 }
 
 model Usuario {
@@ -35,8 +40,9 @@ model Usuario {
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
 
-  propriedades Propriedade[]
-  vinculos     TecnicoPropriedade[]
+  propriedades  Propriedade[]
+  vinculos      TecnicoPropriedade[]
+  cotacoesCriadas CotacaoMercado[]
 }
 
 model Propriedade {
@@ -61,30 +67,31 @@ model Propriedade {
 }
 
 model Cultura {
-  id             Int     @id @default(autoincrement())
-  nome           String  @db.VarChar(100)
-  variedade      String? @db.VarChar(100)
-  descricao      String? @db.Text
-  temperaturaMin Decimal @db.Decimal(5, 2)
-  temperaturaMax Decimal @db.Decimal(5, 2)
-  umidadeMin     Decimal @db.Decimal(5, 2)
-  umidadeMax     Decimal @db.Decimal(5, 2)
+  id             Int      @id @default(autoincrement())
+  nome           String   @db.VarChar(100)
+  variedade      String?  @db.VarChar(100)
+  descricao      String?  @db.Text
+  temperaturaMin Decimal  @db.Decimal(5, 2)
+  temperaturaMax Decimal  @db.Decimal(5, 2)
+  umidadeMin     Decimal  @db.Decimal(5, 2)
+  umidadeMax     Decimal  @db.Decimal(5, 2)
 
-  lotes Lote[]
+  lotes          Lote[]
+  cotacoesMercado CotacaoMercado[]
 }
 
 model Lote {
-  id               Int             @id @default(autoincrement())
-  identificacao    String          @db.VarChar(100)
-  area             Decimal         @db.Decimal(10, 2)
-  dataPlantacao    DateTime        @db.Date
-  colheitaEstimada DateTime?       @db.Date
-  situacao         String          @db.VarChar(30)
+  id               Int              @id @default(autoincrement())
+  identificacao    String           @db.VarChar(100)
+  area             Decimal          @db.Decimal(10, 2)
+  dataPlantacao    DateTime         @db.Date
+  colheitaEstimada DateTime?        @db.Date
+  situacao         String           @db.VarChar(30)
   propriedadeId    Int
   culturaId        Int
-  status           Status          @default(ATIVO)
-  latitude         Decimal?        @db.Decimal(10, 8)
-  longitude        Decimal?        @db.Decimal(11, 8)
+  status           Status           @default(ATIVO)
+  latitude         Decimal?         @db.Decimal(10, 8)
+  longitude        Decimal?         @db.Decimal(11, 8)
   faseFenologica   FaseFenologica?
 
   propriedade Propriedade @relation(fields: [propriedadeId], references: [id])
@@ -138,11 +145,11 @@ model RotaLogistica {
 
   // Declaração do operador para a carga planejada.
   // null significa que essa informação não foi fornecida.
-  exigeRefrigeracaoRapida   Boolean?
+  exigeRefrigeracaoRapida Boolean?
 
-  status                   Status   @default(ATIVO)
-  criadoEm                 DateTime @default(now())
-  atualizadoEm             DateTime @updatedAt
+  status       Status   @default(ATIVO)
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
 
   propriedade Propriedade @relation(fields: [propriedadeId], references: [id])
 
@@ -188,4 +195,37 @@ model Auditoria {
   ip        String   @db.VarChar(64)
 
   @@index([usuarioId, dataHora])
+}
+
+model CotacaoMercado {
+  id             Int            @id @default(autoincrement())
+  culturaId      Int
+  mercadoDestino DestinoMercado
+  paisDestino    String         @db.Char(2)
+  precoMedio     Decimal        @db.Decimal(14, 4)
+  moeda          String         @db.Char(3)
+  unidade        String         @default("KG") @db.VarChar(2)
+  dataReferencia DateTime       @db.Date
+
+  // Identificação da fonte informada pelo administrador.
+  fonteNome       String @db.VarChar(150)
+  fonteReferencia String @db.VarChar(500)
+
+  // Demanda opcional: exige período, fonte e método no validator.
+  demandaEstimadaKg Decimal?  @db.Decimal(14, 2)
+  demandaInicio     DateTime? @db.Date
+  demandaFim        DateTime? @db.Date
+  fonteDemanda      String?   @db.VarChar(500)
+  metodoDemanda     String?   @db.VarChar(1000)
+
+  status       Status   @default(ATIVO)
+  criadoPorId  Int
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  cultura   Cultura @relation(fields: [culturaId], references: [id], onDelete: Restrict)
+  criadoPor Usuario @relation(fields: [criadoPorId], references: [id], onDelete: Restrict)
+
+  @@index([culturaId, mercadoDestino, dataReferencia])
+  @@index([criadoPorId])
 }

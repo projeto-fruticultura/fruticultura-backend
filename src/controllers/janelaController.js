@@ -1,4 +1,8 @@
 const {
+  resolverCotacoes,
+} = require("../services/cotacoesJanelaService");
+
+const {
   validarId,
 } = require("../validators/propriedadeValidator");
 
@@ -11,12 +15,24 @@ const service =
 
 async function consultar(req, res) {
   const agora = new Date();
-  const id = validarId(req.params.id);
 
-  const parametros = validarJanelas(
-    req.body,
-    agora
+  const id = validarId(
+    req.params.id
   );
+
+  const corpo =
+    await resolverCotacoes(
+      req.body,
+      id,
+      req.usuario,
+      agora
+    );
+
+  const parametros =
+    validarJanelas(
+      corpo,
+      agora
+    );
 
   res.json(
     await service.consultar(
@@ -30,12 +46,24 @@ async function consultar(req, res) {
 
 async function consultarPython(req, res) {
   const agora = new Date();
-  const id = validarId(req.params.id);
 
-  const parametros = validarJanelas(
-    req.body,
-    agora
+  const id = validarId(
+    req.params.id
   );
+
+  const corpo =
+    await resolverCotacoes(
+      req.body,
+      id,
+      req.usuario,
+      agora
+    );
+
+  const parametros =
+    validarJanelas(
+      corpo,
+      agora
+    );
 
   res.json(
     await service.consultarPython(
