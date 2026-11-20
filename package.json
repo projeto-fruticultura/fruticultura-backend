@@ -4,19 +4,20 @@
   "description": "Backend principal da plataforma de monitoramento climático e logístico da fruticultura do Vale do São Francisco.",
   "main": "src/server.js",
   "scripts": {
-"dev": "nodemon src/server.js",
+  "dev": "nodemon src/server.js",
   "start": "node src/server.js",
   "postinstall": "prisma generate",
-
   "db:testar": "prisma db pull --print",
   "db:migrar": "prisma migrate dev",
   "db:seed": "node prisma/seed.js",
-
+  "db:deploy": "prisma migrate deploy",
   "test": "jest --runInBand",
-  "test:unit": "jest --runInBand tests/regras.test.js tests/janelas.test.js",
-  "test:api": "jest --runInBand tests/api.test.js",
+  "test:unit": "jest --runInBand tests/regras.test.js tests/modeloPython.test.js tests/novasRegras.test.js tests/riscoPersistencia.test.js",
+  "test:api": "jest --runInBand tests/api.test.js tests/recomendacoes.test.js tests/logisticaComparacao.test.js tests/refrigeracao.test.js tests/mercadoContrato.test.js tests/seguranca.test.js",
   "check": "prisma validate",
-  "build": "prisma generate"
+  "build": "prisma generate",
+  "security:check": "python scripts/verificarSegredos.py",
+  "security:history": "python scripts/verificarSegredos.py --historico"
   },
   "keywords": [],
   "author": "",
@@ -29,6 +30,7 @@
     "dotenv": "^18.0.3",
     "express": "^5.2.1",
     "express-rate-limit": "^8.7.0",
+    "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3"
   },
   "devDependencies": {

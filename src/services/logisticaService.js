@@ -24,6 +24,7 @@ const SELECAO = {
   custo: true,
   transportadora: true,
   situacao: true,
+  exigeRefrigeracaoRapida: true,
   status: true,
   criadoEm: true,
   atualizadoEm: true,
@@ -34,33 +35,70 @@ function escopo(usuario) {
     {
       status: "ATIVO",
     },
+
     {
       propriedade: {
         status: "ATIVO",
       },
     },
+
     filtroRotaLogistica(usuario),
   ];
 }
 
 function formatar(rota) {
+  const exige =
+    rota.exigeRefrigeracaoRapida ?? null;
+
   return {
     ...rota,
+
+    exigeRefrigeracaoRapida: exige,
+
+    refrigeracao: {
+      origem:
+        exige === null
+          ? "NAO_INFORMADO"
+          : "DECLARACAO_OPERADOR",
+
+      prazoReferenciaHoras:
+        exige === true
+          ? 6
+          : null,
+
+      comparadorPrazo:
+        exige === true
+          ? "MENOR_QUE"
+          : null,
+
+      temperaturaCargaVerificada: false,
+    },
+
     tempoEstimadoHoras: Number(
       rota.tempoEstimadoHoras
     ),
-    custo: Number(rota.custo),
+
+    custo: Number(
+      rota.custo
+    ),
   };
 }
 
 function arredondar(valor, casas) {
-  if (valor === null || valor === undefined) {
+  if (
+    valor === null ||
+    valor === undefined
+  ) {
     return null;
   }
 
   const fator = 10 ** casas;
 
-  return Math.round(Number(valor) * fator) / fator;
+  return (
+    Math.round(
+      Number(valor) * fator
+    ) / fator
+  );
 }
 
 async function garantirPropriedade(
@@ -71,6 +109,7 @@ async function garantirPropriedade(
     await prisma.propriedade.findFirst({
       where: {
         id: propriedadeId,
+
         AND: [
           filtroPropriedade(usuario),
         ],
@@ -165,12 +204,15 @@ async function listar(
     ]);
 
   return {
-    dados: rotas.map(formatar),
+    dados: rotas.map(
+      formatar
+    ),
 
     paginacao: {
       pagina,
       limite,
       total,
+
       totalPaginas: Math.ceil(
         total / limite
       ),
@@ -178,7 +220,10 @@ async function listar(
   };
 }
 
-async function buscarPorId(id, usuario) {
+async function buscarPorId(
+  id,
+  usuario
+) {
   const rota =
     await prisma.rotaLogistica.findFirst({
       where: {
@@ -199,7 +244,10 @@ async function buscarPorId(id, usuario) {
   return formatar(rota);
 }
 
-async function criar(dados, usuario) {
+async function criar(
+  dados,
+  usuario
+) {
   await garantirPropriedade(
     dados.propriedadeId,
     usuario
@@ -240,7 +288,9 @@ async function atualizar(
     );
   }
 
-  if (Object.keys(dados).length > 0) {
+  if (
+    Object.keys(dados).length > 0
+  ) {
     const { count } =
       await prisma.rotaLogistica.updateMany({
         where: filtro,
@@ -255,10 +305,16 @@ async function atualizar(
     }
   }
 
-  return buscarPorId(id, usuario);
+  return buscarPorId(
+    id,
+    usuario
+  );
 }
 
-async function remover(id, usuario) {
+async function remover(
+  id,
+  usuario
+) {
   const { count } =
     await prisma.rotaLogistica.updateMany({
       where: {
@@ -309,7 +365,9 @@ async function compararPropriedades(
       },
     });
 
-  if (propriedades.length !== ids.length) {
+  if (
+    propriedades.length !== ids.length
+  ) {
     throw new ErroHttp(
       404,
       "Uma ou mais propriedades não foram encontradas."
@@ -338,7 +396,10 @@ async function compararPropriedades(
     porModal,
   ] = await Promise.all([
     prisma.rotaLogistica.groupBy({
-      by: ["propriedadeId"],
+      by: [
+        "propriedadeId",
+      ],
+
       where,
 
       _count: {
@@ -393,10 +454,12 @@ async function compararPropriedades(
   ]);
 
   const mapaAgregados = new Map(
-    agregados.map((item) => [
-      item.propriedadeId,
-      item,
-    ])
+    agregados.map(
+      (item) => [
+        item.propriedadeId,
+        item,
+      ]
+    )
   );
 
   const mapaSituacoes = new Map();
@@ -416,7 +479,8 @@ async function compararPropriedades(
 
     mapaSituacoes.get(
       item.propriedadeId
-    )[item.situacao] = item._count._all;
+    )[item.situacao] =
+      item._count._all;
   }
 
   for (const item of porModal) {
@@ -433,11 +497,13 @@ async function compararPropriedades(
 
     mapaModais.get(
       item.propriedadeId
-    )[item.modal] = item._count._all;
+    )[item.modal] =
+      item._count._all;
   }
 
   return {
-    propriedadesComparadas: ids.length,
+    propriedadesComparadas:
+      ids.length,
 
     calculadoEm:
       new Date().toISOString(),
@@ -476,20 +542,17 @@ async function compararPropriedades(
           ),
 
           prazoMedioHoras: arredondar(
-            agregado?._avg
-              ?.tempoEstimadoHoras,
+            agregado?._avg?.tempoEstimadoHoras,
             1
           ),
 
           prazoMinimoHoras: arredondar(
-            agregado?._min
-              ?.tempoEstimadoHoras,
+            agregado?._min?.tempoEstimadoHoras,
             1
           ),
 
           prazoMaximoHoras: arredondar(
-            agregado?._max
-              ?.tempoEstimadoHoras,
+            agregado?._max?.tempoEstimadoHoras,
             1
           ),
 
