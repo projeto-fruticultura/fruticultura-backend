@@ -22,10 +22,13 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    field_serializer,
     model_validator,
 )
 
 
+# Números devem chegar como números JSON.
+# Valores infinitos e NaN não são permitidos.
 Numero = Annotated[
     float,
     Field(
@@ -45,15 +48,43 @@ Percentual = Annotated[
 ]
 
 
+def iso(instante):
+    """Padroniza datas em UTC com milissegundos."""
+    return (
+        instante.astimezone(timezone.utc)
+        .isoformat(timespec="milliseconds")
+        .replace("+00:00", "Z")
+    )
+
+
 class Modelo(BaseModel):
+    # Aceita os metadados adicionais enviados pelo Node,
+    # utilizando somente os campos declarados.
     model_config = ConfigDict(
         extra="ignore"
     )
 
+    @field_serializer("*", when_used="json")
+    def serializar_datas(self, valor):
+        if isinstance(valor, datetime):
+            return iso(valor)
+
+        return valor
+
+
+# ==================================================
+# Modelos de entrada
+# ==================================================
 
 class Lote(Modelo):
     id: int = Field(gt=0)
-    faseFenologica: str | None
+
+    faseFenologica: Literal[
+        "VEGETATIVA",
+        "FLORACAO_PANICULA",
+        "FRUTIFICACAO",
+        "MATURACAO",
+    ] | None
 
 
 class Parametros(Modelo):
@@ -72,9 +103,11 @@ class Parametros(Modelo):
     ]
 
     chuvaMaximaMmDia: NaoNegativo
+
     umidadeArMaximaPercentual: Percentual
 
     fonte: str = Field(min_length=1)
+
     versao: str = Field(min_length=1)
 
 
@@ -96,6 +129,7 @@ class Dia(Modelo):
     ]
 
     precipitacaoMm: NaoNegativo
+
     umidadeRelativaMediaPercentual: Percentual
 
 
@@ -128,9 +162,11 @@ class Exportacao(Modelo):
     ]
 
     precoInternoKg: NaoNegativo
+
     precoExportacaoKg: NaoNegativo
 
     custoInternoKg: NaoNegativo
+
     custoExportacaoKg: NaoNegativo
 
     cadeiaFrioGarantida: bool = Field(
@@ -166,7 +202,7 @@ class Pedido(Modelo):
     parametrosExportacao: Exportacao | None = None
 
     @model_validator(mode="after")
-    def validar_consistencia(self):
+    def consistencia(self):
         hoje = (
             self.requestedAt
             .astimezone(timezone.utc)
@@ -201,8 +237,8 @@ class Pedido(Modelo):
 
         if datas != esperadas:
             raise ValueError(
-                "A previsão deve começar hoje e "
-                "conter dias consecutivos em UTC."
+                "Previsão deve começar hoje e conter "
+                "dias consecutivos em UTC."
             )
 
         tem_logistica = (
@@ -215,8 +251,8 @@ class Pedido(Modelo):
 
         if tem_logistica != tem_exportacao:
             raise ValueError(
-                "Logística e parâmetros de "
-                "exportação devem vir juntos."
+                "Logística e parâmetros de exportação "
+                "devem vir juntos."
             )
 
         if self.parametrosExportacao:
@@ -233,43 +269,198 @@ class Pedido(Modelo):
         return self
 
 
-def iso(instante):
-    return (
-        instante
-        .astimezone(timezone.utc)
-        .isoformat(timespec="milliseconds")
-        .replace("+00:00", "Z")
+# ==================================================
+# Modelos de saída e memória de cálculo
+# ==================================================
+
+class MemoriaGDD(Modelo):
+    unidade: Literal["°C.dia"] = "°C.dia"
+
+    metodo: str = (
+        "max(0, temperaturaMediaIntervalo "
+        "- temperaturaBaseC) * horas / 24"
     )
 
+    fonteParametros: str
 
-def calcular(pedido):
-    parametros = pedido.parametrosAgronomicos
+    versaoParametros: str
 
-    agora = pedido.requestedAt.astimezone(
-        timezone.utc
-    )
+    referencia: str
 
-    hoje = agora.replace(
-        hour=0,
-        minute=0,
-        second=0,
-        microsecond=0,
-    )
+    ate: str
 
-    referencia = parametros.dataHoraReferencia
+    temperaturaBaseC: Numero
 
-    # Descarta duplicatas iguais e recusa
-    # valores conflitantes no mesmo instante.
+    gddReferencia: NaoNegativo
+
+    gddObservado: NaoNegativo
+
+    gddAcumulado: NaoNegativo
+
+    gddAlvo: NaoNegativo
+
+    gddFaltante: NaoNegativo
+
+    horasObservadas: NaoNegativo
+
+    horasEsperadas: NaoNegativo
+
+    coberturaPercentual: Percentual
+
+    coberturaMinimaPercentual: float = 95.0
+
+    lacunaMaximaMinutos: int = 30
+
+    historicoSuficiente: bool
+
+
+class CriteriosExportacao(Modelo):
+    cadeiaFrioDeclarada: bool
+
+    # O contrato atual recebe uma declaração,
+    # sem medições de temperatura da carga.
+    temperaturaRefrigeracaoVerificada: Literal[
+        False
+    ] = False
+
+    limiteResfriamentoHoras: float = 6.0
+
+    horasAteResfriamento: NaoNegativo
+
+    tempoTransporteHoras: NaoNegativo
+
+    tempoTotalAteChegadaHoras: NaoNegativo
+
+    vidaUtilHoras: NaoNegativo
+
+    margemInternaKg: Numero
+
+    margemExportacaoKg: Numero
+
+    moeda: Literal["BRL"] = "BRL"
+
+    unidadeFinanceira: Literal[
+        "por kg"
+    ] = "por kg"
+
+    resfriamentoNoPrazo: bool
+
+    chegadaDentroVidaUtil: bool
+
+    margemExportacaoVantajosa: bool
+
+    criteriosAtendidos: bool
+
+    motivos: list[str]
+
+
+class JanelaColheita(Modelo):
+    inicio: AwareDatetime
+
+    fim: AwareDatetime
+
+
+class JanelaExportacao(Modelo):
+    colheitaInicio: AwareDatetime
+
+    colheitaFim: AwareDatetime
+
+    embarqueInicio: AwareDatetime
+
+    embarqueFim: AwareDatetime
+
+    chegadaInicio: AwareDatetime
+
+    chegadaFim: AwareDatetime
+
+
+class ResultadoColheita(Modelo):
+    status: Literal[
+        "DADOS_INSUFICIENTES",
+        "AGUARDAR_MATURACAO",
+        "FAVORAVEL",
+        "SEM_JANELA_NO_HORIZONTE",
+    ]
+
+    windows: list[JanelaColheita]
+
+    reasons: list[str]
+
+
+class ResultadoExportacao(Modelo):
+    status: Literal[
+        "DADOS_INSUFICIENTES",
+        "SEM_JANELA_COLHEITA",
+        "NAO_FAVORAVEL",
+        "FAVORAVEL",
+    ]
+
+    windows: list[JanelaExportacao]
+
+    reasons: list[str]
+
+
+class MemoriaCalculo(Modelo):
+    gdd: MemoriaGDD
+
+    exportacao: CriteriosExportacao | None
+
+
+class Resposta(Modelo):
+    contractVersion: Literal["1.0"]
+
+    modelVersion: str
+
+    generatedAt: AwareDatetime
+
+    harvest: ResultadoColheita
+
+    export: ResultadoExportacao
+
+    natureza: Literal[
+        "ESTIMATIVA_PARAMETRIZADA"
+    ]
+
+    coberturaHistoricaPercentual: Percentual
+
+    memoriaCalculo: MemoriaCalculo
+
+    avisos: list[str]
+
+
+# ==================================================
+# Cálculo de Graus-Dia
+# ==================================================
+
+def calcular_gdd(leituras, parametros, ate):
+    """
+    Para cada intervalo válido:
+
+    temperatura média = (T anterior + T atual) / 2
+
+    GDD do intervalo =
+        max(0, temperatura média - temperatura base)
+        × duração em dias
+
+    Intervalos superiores a 30 minutos não são
+    utilizados para preencher lacunas.
+
+    A referência térmica é um acumulado informado;
+    ela não é inferida da data de plantação.
+    """
+    inicio = parametros.dataHoraReferencia
+
     amostras = {}
 
-    for leitura in pedido.historico:
-        if referencia <= leitura.instante <= hoje:
-            instante = leitura.instante
-            temperatura = leitura.temperaturaC
+    for leitura in leituras:
+        if inicio <= leitura.instante <= ate:
+            anterior = amostras.get(
+                leitura.instante
+            )
 
             if (
-                instante in amostras
-                and amostras[instante] != temperatura
+                anterior is not None
+                and anterior != leitura.temperaturaC
             ):
                 raise HTTPException(
                     status_code=422,
@@ -279,54 +470,232 @@ def calcular(pedido):
                     ),
                 )
 
-            amostras[instante] = temperatura
+            amostras[leitura.instante] = (
+                leitura.temperaturaC
+            )
 
-    ordenadas = sorted(amostras.items())
+    ordenadas = sorted(
+        amostras.items()
+    )
 
-    segundos_observados = 0.0
-    graus_dia = 0.0
+    segundos = 0.0
+    gdd = 0.0
 
     for anterior, atual in zip(
         ordenadas,
         ordenadas[1:],
     ):
-        instante_anterior, temperatura_anterior = anterior
-        instante_atual, temperatura_atual = atual
+        t0, temp0 = anterior
+        t1, temp1 = atual
 
         intervalo = (
-            instante_atual - instante_anterior
+            t1 - t0
         ).total_seconds()
 
-        # Não preenche lacunas superiores
-        # a trinta minutos.
-        if 0 < intervalo <= 1800:
-            segundos_observados += intervalo
-
+        if 0 < intervalo <= 30 * 60:
             temperatura_media = (
-                temperatura_anterior
-                + temperatura_atual
+                temp0 + temp1
             ) / 2
 
-            incremento = max(
+            excesso_termico = max(
                 0,
                 temperatura_media
                 - parametros.temperaturaBaseC,
             )
 
-            graus_dia += (
-                incremento
+            gdd += (
+                excesso_termico
                 * intervalo
                 / 86400
             )
 
-    segundos_esperados = (
-        hoje - referencia
+            segundos += intervalo
+
+    esperado = (
+        ate - inicio
     ).total_seconds()
 
+    # Se a referência já corresponde ao início
+    # do dia atual, não há intervalo anterior
+    # a integrar; utiliza-se o GDD de referência.
     cobertura = (
-        segundos_observados / segundos_esperados
-        if segundos_esperados
+        segundos / esperado
+        if esperado
         else 1.0
+    )
+
+    acumulado = (
+        parametros.grausDiaReferencia
+        + gdd
+    )
+
+    return MemoriaGDD(
+        fonteParametros=parametros.fonte,
+
+        versaoParametros=parametros.versao,
+
+        referencia=iso(inicio),
+
+        ate=iso(ate),
+
+        temperaturaBaseC=(
+            parametros.temperaturaBaseC
+        ),
+
+        gddReferencia=(
+            parametros.grausDiaReferencia
+        ),
+
+        gddObservado=gdd,
+
+        gddAcumulado=acumulado,
+
+        gddAlvo=parametros.grausDiaAlvo,
+
+        gddFaltante=max(
+            0,
+            parametros.grausDiaAlvo
+            - acumulado,
+        ),
+
+        horasObservadas=segundos / 3600,
+
+        horasEsperadas=esperado / 3600,
+
+        coberturaPercentual=cobertura * 100,
+
+        historicoSuficiente=(
+            cobertura >= 0.95
+        ),
+    )
+
+
+# ==================================================
+# Cadeia do frio e viabilidade da exportação
+# ==================================================
+
+def avaliar_exportacao(dados, rota):
+    """
+    Critérios:
+
+    - Cadeia do frio declarada como garantida.
+    - Resfriamento antes de seis horas.
+    - Chegada antes do fim da vida útil.
+    - Margem de exportação positiva.
+    - Margem de exportação superior à interna.
+
+    Os custos por kg precisam incluir frete,
+    refrigeração, taxas e demais custos aplicáveis.
+    """
+    total_horas = (
+        dados.horasAteResfriamento
+        + rota.tempoEstimadoHoras
+    )
+
+    margem_interna = (
+        dados.precoInternoKg
+        - dados.custoInternoKg
+    )
+
+    margem_exportacao = (
+        dados.precoExportacaoKg
+        - dados.custoExportacaoKg
+    )
+
+    frio_no_prazo = (
+        dados.horasAteResfriamento < 6
+    )
+
+    vida_util_ok = (
+        total_horas < dados.vidaUtilHoras
+    )
+
+    margem_ok = (
+        margem_exportacao > 0
+        and margem_exportacao > margem_interna
+    )
+
+    motivos = []
+
+    if not dados.cadeiaFrioGarantida:
+        motivos.append(
+            "Cadeia do frio não garantida."
+        )
+
+    if not frio_no_prazo:
+        motivos.append(
+            "Resfriamento deve ocorrer "
+            "antes de seis horas."
+        )
+
+    if not vida_util_ok:
+        motivos.append(
+            "Tempo até a chegada excede "
+            "ou iguala a vida útil."
+        )
+
+    if not margem_ok:
+        motivos.append(
+            "Margem de exportação deve ser "
+            "positiva e superior à interna."
+        )
+
+    return CriteriosExportacao(
+        cadeiaFrioDeclarada=(
+            dados.cadeiaFrioGarantida
+        ),
+
+        horasAteResfriamento=(
+            dados.horasAteResfriamento
+        ),
+
+        tempoTransporteHoras=(
+            rota.tempoEstimadoHoras
+        ),
+
+        tempoTotalAteChegadaHoras=total_horas,
+
+        vidaUtilHoras=dados.vidaUtilHoras,
+
+        margemInternaKg=margem_interna,
+
+        margemExportacaoKg=margem_exportacao,
+
+        resfriamentoNoPrazo=frio_no_prazo,
+
+        chegadaDentroVidaUtil=vida_util_ok,
+
+        margemExportacaoVantajosa=margem_ok,
+
+        criteriosAtendidos=not motivos,
+
+        motivos=motivos,
+    )
+
+
+# ==================================================
+# Recomendação integrada
+# ==================================================
+
+def calcular(pedido):
+    parametros = pedido.parametrosAgronomicos
+
+    agora = (
+        pedido.requestedAt
+        .astimezone(timezone.utc)
+    )
+
+    hoje = agora.replace(
+        hour=0,
+        minute=0,
+        second=0,
+        microsecond=0,
+    )
+
+    gdd = calcular_gdd(
+        pedido.historico,
+        parametros,
+        hoje,
     )
 
     colheita = {
@@ -341,24 +710,23 @@ def calcular(pedido):
         "reasons": [],
     }
 
-    if cobertura < 0.95:
+    if not gdd.historicoSuficiente:
         colheita["reasons"].append(
             "Cobertura térmica inferior a 95%; "
             "lacunas não foram preenchidas."
         )
 
     elif pedido.lote.faseFenologica != "MATURACAO":
-        colheita["status"] = "AGUARDAR_MATURACAO"
+        colheita["status"] = (
+            "AGUARDAR_MATURACAO"
+        )
 
         colheita["reasons"].append(
             "Lote precisa estar em MATURACAO."
         )
 
     else:
-        acumulado = (
-            parametros.grausDiaReferencia
-            + graus_dia
-        )
+        acumulado = gdd.gddAcumulado
 
         for dia in pedido.previsaoDiaria.dias:
             inicio_dia = datetime.combine(
@@ -367,15 +735,15 @@ def calcular(pedido):
                 timezone.utc,
             )
 
-            fim_dia = (
-                inicio_dia
-                + timedelta(days=1)
-                - timedelta(milliseconds=1)
-            )
-
             inicio = max(
                 inicio_dia,
                 agora,
+            )
+
+            fim = (
+                inicio_dia
+                + timedelta(days=1)
+                - timedelta(milliseconds=1)
             )
 
             atingiu_alvo = (
@@ -400,31 +768,43 @@ def calcular(pedido):
             ):
                 colheita["windows"].append({
                     "inicio": iso(inicio),
-                    "fim": iso(fim_dia),
+                    "fim": iso(fim),
                 })
 
-            # O calor previsto entra no acumulado
-            # somente depois de avaliar o dia.
+            # O calor previsto do dia só é somado
+            # depois da avaliação da janela.
+            # Assim, ele não antecipa a colheita
+            # no próprio dia em que será acumulado.
             acumulado += max(
                 0,
                 dia.temperaturaMediaC
                 - parametros.temperaturaBaseC,
             )
 
-        if colheita["windows"]:
-            colheita["status"] = "FAVORAVEL"
+        colheita["status"] = (
+            "FAVORAVEL"
+            if colheita["windows"]
+            else "SEM_JANELA_NO_HORIZONTE"
+        )
 
-        else:
-            colheita["status"] = (
-                "SEM_JANELA_NO_HORIZONTE"
-            )
-
+        if not colheita["windows"]:
             colheita["reasons"].append(
                 "Nenhum dia atende aos limites "
                 "térmicos e meteorológicos."
             )
 
-    dados_exportacao = pedido.parametrosExportacao
+    dados_exportacao = (
+        pedido.parametrosExportacao
+    )
+
+    criterios = (
+        avaliar_exportacao(
+            dados_exportacao,
+            pedido.logistica,
+        )
+        if dados_exportacao
+        else None
+    )
 
     if dados_exportacao is None:
         exportacao["reasons"].append(
@@ -442,68 +822,29 @@ def calcular(pedido):
         )
 
     else:
-        transporte = (
-            pedido.logistica.tempoEstimadoHoras
+        exportacao["reasons"].extend(
+            criterios.motivos
         )
-
-        motivos = exportacao["reasons"]
-
-        if not dados_exportacao.cadeiaFrioGarantida:
-            motivos.append(
-                "Cadeia do frio não garantida."
-            )
-
-        horas_frio = (
-            dados_exportacao.horasAteResfriamento
-        )
-
-        if horas_frio >= 6:
-            motivos.append(
-                "Resfriamento deve ocorrer "
-                "antes de seis horas."
-            )
-
-        if (
-            horas_frio + transporte
-            >= dados_exportacao.vidaUtilHoras
-        ):
-            motivos.append(
-                "Tempo até a chegada excede "
-                "ou iguala a vida útil."
-            )
-
-        margem_interna = (
-            dados_exportacao.precoInternoKg
-            - dados_exportacao.custoInternoKg
-        )
-
-        margem_exportacao = (
-            dados_exportacao.precoExportacaoKg
-            - dados_exportacao.custoExportacaoKg
-        )
-
-        if (
-            margem_exportacao <= 0
-            or margem_exportacao <= margem_interna
-        ):
-            motivos.append(
-                "Margem de exportação deve ser "
-                "positiva e superior à interna."
-            )
 
         exportacao["status"] = (
-            "NAO_FAVORAVEL"
-            if motivos
-            else "FAVORAVEL"
+            "FAVORAVEL"
+            if criterios.criteriosAtendidos
+            else "NAO_FAVORAVEL"
         )
 
-        if not motivos:
-            intervalo_frio = timedelta(
-                hours=horas_frio
+        if criterios.criteriosAtendidos:
+            frio = timedelta(
+                hours=(
+                    dados_exportacao
+                    .horasAteResfriamento
+                )
             )
 
-            intervalo_transporte = timedelta(
-                hours=transporte
+            trajeto = timedelta(
+                hours=(
+                    pedido.logistica
+                    .tempoEstimadoHoras
+                )
             )
 
             for janela in colheita["windows"]:
@@ -527,23 +868,19 @@ def calcular(pedido):
                     "colheitaFim": iso(fim),
 
                     "embarqueInicio": iso(
-                        inicio + intervalo_frio
+                        inicio + frio
                     ),
 
                     "embarqueFim": iso(
-                        fim + intervalo_frio
+                        fim + frio
                     ),
 
                     "chegadaInicio": iso(
-                        inicio
-                        + intervalo_frio
-                        + intervalo_transporte
+                        inicio + frio + trajeto
                     ),
 
                     "chegadaFim": iso(
-                        fim
-                        + intervalo_frio
-                        + intervalo_transporte
+                        fim + frio + trajeto
                     ),
                 })
 
@@ -551,7 +888,7 @@ def calcular(pedido):
         "contractVersion": "1.0",
 
         "modelVersion": (
-            "regras-parametrizadas-python-v1"
+            "regras-parametrizadas-python-v1.1"
         ),
 
         "generatedAt": iso(
@@ -566,8 +903,18 @@ def calcular(pedido):
             "ESTIMATIVA_PARAMETRIZADA"
         ),
 
+        "memoriaCalculo": {
+            "gdd": gdd.model_dump(),
+
+            "exportacao": (
+                criterios.model_dump()
+                if criterios
+                else None
+            ),
+        },
+
         "coberturaHistoricaPercentual": round(
-            cobertura * 100,
+            gdd.coberturaPercentual,
             2,
         ),
 
@@ -587,9 +934,18 @@ def calcular(pedido):
                 "cotações e custos completos "
                 "antes da operação."
             ),
+            (
+                "Cadeia do frio declarada; não há "
+                "medição da temperatura de "
+                "refrigeração neste contrato."
+            ),
         ],
     }
 
+
+# ==================================================
+# Autenticação entre serviços
+# ==================================================
 
 def autenticar(
     authorization: str | None = Header(
@@ -602,13 +958,17 @@ def autenticar(
     )
 
     if token:
-        esperado = f"Bearer {token}"
+        recebido = (
+            authorization or ""
+        ).encode("utf-8")
 
-        recebido = authorization or ""
+        esperado = (
+            f"Bearer {token}"
+        ).encode("utf-8")
 
         if not secrets.compare_digest(
-            recebido.encode("utf-8"),
-            esperado.encode("utf-8"),
+            recebido,
+            esperado,
         ):
             raise HTTPException(
                 status_code=401,
@@ -616,9 +976,13 @@ def autenticar(
             )
 
 
+# ==================================================
+# API
+# ==================================================
+
 app = FastAPI(
     title="ValeSafra — Recomendações",
-    version="1.0",
+    version="1.1",
 )
 
 
@@ -632,9 +996,12 @@ def health():
 
 @app.post(
     "/v1/recommendations/harvest-export",
+    response_model=Resposta,
     dependencies=[
         Depends(autenticar),
     ],
 )
 def recomendar(pedido: Pedido):
-    return calcular(pedido)
+    return Resposta.model_validate(
+        calcular(pedido)
+    )

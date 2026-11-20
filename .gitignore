@@ -1,7 +1,12 @@
 .env
 .env.*
 !.env.example
+
 node_modules/
 .venv/
 __pycache__/
 *.pyc
+coverage/
+
+analise/leituras.csv
+analise/resultados/
