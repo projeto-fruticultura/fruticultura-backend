@@ -1,5 +1,10 @@
 const prisma = require("../config/prisma");
 
+const {
+  temperaturaValida,
+  umidadeValida,
+} = require("./regrasNumericas");
+
 const GAP_MS = 15 * 60_000;
 
 function calcular(
@@ -25,8 +30,16 @@ function calcular(
       Number(cultura.umidadeMin),
   };
 
+  // Leitura fisicamente impossivel e defeito do sensor: nao entra em
+  // nenhuma regra nem no tempo observado.
+  const validas = leituras.filter(
+    (leitura) =>
+      temperaturaValida(leitura.temperatura) &&
+      umidadeValida(leitura.umidade)
+  );
+
   const unicas = new Map(
-    leituras.map((leitura) => [
+    validas.map((leitura) => [
       new Date(leitura.dataHoraLeitura).getTime(),
       leitura,
     ])

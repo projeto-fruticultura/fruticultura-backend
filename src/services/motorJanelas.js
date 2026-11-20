@@ -1,3 +1,8 @@
+const {
+  arredondarMargem,
+  temperaturaValida,
+} = require("./regrasNumericas");
+
 const DIA_MS = 86400000;
 const GAP_MAX_MS = 30 * 60000;
 const COBERTURA_MINIMA = 0.95;
@@ -16,10 +21,7 @@ function acumuladoObservado(leituras, parametros, ate) {
           return (
             instante >= inicio &&
             instante <= fim &&
-            typeof leitura.temperatura === "number" &&
-            Number.isFinite(leitura.temperatura) &&
-            leitura.temperatura >= -10 &&
-            leitura.temperatura <= 60
+            temperaturaValida(leitura.temperatura)
           );
         })
         .map((leitura) => [
@@ -216,11 +218,13 @@ function calcularJanelas({
 
   const horasTransporte = Number(rota.tempoEstimadoHoras);
 
-  const margemInterna =
-    parametros.precoInternoKg - parametros.custoInternoKg;
+  const margemInterna = arredondarMargem(
+    parametros.precoInternoKg - parametros.custoInternoKg,
+  );
 
-  const margemExportacao =
-    parametros.precoExportacaoKg - parametros.custoExportacaoKg;
+  const margemExportacao = arredondarMargem(
+    parametros.precoExportacaoKg - parametros.custoExportacaoKg,
+  );
 
   Object.assign(resultado.exportacao, {
     rotaId: rota.id,
