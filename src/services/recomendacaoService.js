@@ -2,6 +2,10 @@ const {
   ErroHttp,
 } = require("../middlewares/erros");
 
+const {
+  arredondarMargem,
+} = require("./regrasNumericas");
+
 function recomendar(dados, faseFenologica) {
   if (
     !dados ||
@@ -101,13 +105,15 @@ function recomendar(dados, faseFenologica) {
 
   const colher = motivos.length === 0;
 
-  const margemInterna =
+  const margemInterna = arredondarMargem(
     dados.precoInternoKg -
-    dados.custoInternoKg;
+    dados.custoInternoKg
+  );
 
-  const margemExportacao =
+  const margemExportacao = arredondarMargem(
     dados.precoExportacaoKg -
-    dados.custoExportacaoKg;
+    dados.custoExportacaoKg
+  );
 
   const exportar =
     colher &&
