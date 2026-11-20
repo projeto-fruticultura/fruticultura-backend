@@ -1,0 +1,93 @@
+name: ValeSafra - Testes e seguranca
+
+on:
+  push:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: valesafra-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend Node.js
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      NODE_ENV: test
+
+      # Endereco propositalmente invalido.
+      # Os testes utilizam Prisma simulado.
+      DATABASE_URL: postgresql://teste:teste@127.0.0.1:1/nao_existe?connect_timeout=1
+
+      # Valor exclusivo dos testes, sem acesso a producao.
+      JWT_SECRET: segredo-exclusivo-do-ci-sem-acesso-a-producao
+
+      LEITURAS_AGENDADOR_ATIVO: "false"
+
+    steps:
+      - name: Baixar codigo e historico
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Instalar dependencias pelo lockfile
+        run: npm ci
+
+      - name: Validar schema Prisma
+        run: npm run check
+
+      - name: Gerar Prisma Client
+        run: npm run build
+
+      - name: Executar testes Node
+        run: npm test
+
+      - name: Verificar dependencias vulneraveis
+        run: npm run security:audit
+
+      - name: Procurar padroes de segredos no Git
+        run: python3 scripts/verificarSegredos.py --historico
+
+  python:
+    name: Python e analise de dados
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Baixar codigo
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Configurar Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            python-service/requirements.txt
+            python-service/requirements-test.txt
+            analise/requirements.txt
+
+      - name: Instalar dependencias Python
+        run: python -m pip install -r python-service/requirements-test.txt -r analise/requirements.txt
+
+      - name: Testar servico FastAPI e calculos
+        run: python -m unittest discover -s python-service -v
+
+      - name: Testar tratamento e analise
+        run: python -m unittest discover -s analise -v
