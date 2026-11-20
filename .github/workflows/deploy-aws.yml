@@ -1,0 +1,96 @@
+name: ValeSafra - Deploy AWS
+
+# Atualiza a EC2 da AWS depois que o CI da main termina verde.
+# Nao usa nenhuma chave guardada: o GitHub prova quem ele e (OIDC) e a AWS
+# entrega uma permissao temporaria, restrita a este repositorio e a branch main.
+# As migrations do banco NAO rodam aqui: se houver migration pendente,
+# o deploy para antes de reiniciar a API e avisa no log.
+
+on:
+  workflow_run:
+    workflows: ["ValeSafra - Testes e seguranca"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: valesafra-deploy-aws
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-east-1
+  AWS_ROLE_ARN: arn:aws:iam::859928915859:role/github-actions-deploy-valesafra
+  EC2_INSTANCE_ID: i-0550904ed4d8f9eb0
+
+jobs:
+  deploy:
+    name: Atualizar EC2
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # So roda: (a) manualmente, ou (b) quando o CI de um push na main
+    # deste mesmo repositorio terminou com sucesso (nunca por fork ou PR).
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_repository.full_name == github.repository
+      )
+
+    steps:
+      - name: Entrar na AWS (OIDC, sem chave)
+        uses: aws-actions/configure-aws-credentials@v6.2.3
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: deploy-${{ github.run_id }}
+
+      - name: Mandar o deploy para a EC2
+        run: |
+          set -euo pipefail
+
+          CMD_ID="$(aws ssm send-command \
+            --instance-ids "$EC2_INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --comment "deploy ${GITHUB_SHA}" \
+            --timeout-seconds 600 \
+            --parameters 'commands=["sudo -u ssm-user -H /home/ssm-user/deploy-valesafra.sh"]' \
+            --query "Command.CommandId" \
+            --output text)"
+
+          echo "Comando enviado: ${CMD_ID}"
+
+          # Espera terminar (o wait falha se o comando falhar; o status real vem abaixo).
+          aws ssm wait command-executed \
+            --command-id "$CMD_ID" \
+            --instance-id "$EC2_INSTANCE_ID" || true
+
+          STATUS="$(aws ssm get-command-invocation \
+            --command-id "$CMD_ID" \
+            --instance-id "$EC2_INSTANCE_ID" \
+            --query "Status" --output text)"
+
+          echo "::group::Saida da EC2"
+          aws ssm get-command-invocation \
+            --command-id "$CMD_ID" \
+            --instance-id "$EC2_INSTANCE_ID" \
+            --query "StandardOutputContent" --output text
+          echo "::endgroup::"
+
+          echo "::group::Erros da EC2"
+          aws ssm get-command-invocation \
+            --command-id "$CMD_ID" \
+            --instance-id "$EC2_INSTANCE_ID" \
+            --query "StandardErrorContent" --output text
+          echo "::endgroup::"
+
+          echo "Status final: ${STATUS}"
+          if [ "$STATUS" != "Success" ]; then
+            echo "::error::Deploy falhou na EC2 (status ${STATUS}). Veja a saida acima."
+            exit 1
+          fi
