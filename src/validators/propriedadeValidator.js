@@ -56,17 +56,32 @@ function validarPropriedade(corpo) {
     campos.uf = "uf deve ser a sigla de um estado brasileiro (ex.: PE, BA).";
   }
 
-  // Latitude opcional: só valida se o cliente realmente enviou algum valor
-  if (corpo.latitude !== undefined && corpo.latitude !== null && corpo.latitude !== "") {
+ 
+  // Latitude e longitude devem ser informadas juntas ou omitidas.
+  const temLatitude = corpo.latitude !== undefined &&
+                      corpo.latitude !== null &&
+                      corpo.latitude !== "";
+
+  const temLongitude = corpo.longitude !== undefined &&
+                       corpo.longitude !== null &&
+                       corpo.longitude !== "";
+
+  if (temLatitude !== temLongitude) {
+    campos.coordenadas = "latitude e longitude devem ser informadas juntas.";
+  }
+
+  // Latitude opcional
+  if (temLatitude) {
     const erroLatitude = validarFaixa(corpo.latitude, -90, 90);
     if (erroLatitude) campos.latitude = `latitude ${erroLatitude}`;
   }
 
-  // Longitude opcional: só valida se o cliente realmente enviou algum valor
-  if (corpo.longitude !== undefined && corpo.longitude !== null && corpo.longitude !== "") {
+  // Longitude opcional
+  if (temLongitude) {
     const erroLongitude = validarFaixa(corpo.longitude, -180, 180);
     if (erroLongitude) campos.longitude = `longitude ${erroLongitude}`;
   }
+
 
   if (Object.keys(campos).length > 0) {
     throw new ErroHttp(400, "Dados inválidos.", campos);

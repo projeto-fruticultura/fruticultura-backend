@@ -1,0 +1,10 @@
+CREATE TYPE "OrigemCoordenadas" AS ENUM (
+  'INFORMADA',
+  'ESTIMADA_POR_UF',
+  'ESTIMADA_PADRAO_VALE',
+  'NAO_IDENTIFICADA'
+);
+
+ALTER TABLE "Propriedade"
+ADD COLUMN "origemCoordenadas" "OrigemCoordenadas"
+NOT NULL DEFAULT 'NAO_IDENTIFICADA';

@@ -103,23 +103,45 @@ async function criar(dados, usuario) {
     TO: { lat: -10.17, lon: -48.33 }
   };
 
-  let dadosParaCriar = { ...dados };
+ 
+let dadosParaCriar = { ...dados };
 
-  // 2. Se a UF foi informada mas latitude/longitude vieram vazias, preenche automaticamente
-  if (dadosParaCriar.uf && (!dadosParaCriar.latitude || !dadosParaCriar.longitude)) {
-    const ufMaiuscula = dadosParaCriar.uf.toUpperCase();
-    const coordsRegiao = coordenadasUf[ufMaiuscula] || { lat: -9.33, lon: -40.60 }; // Padrão Vale se não achar
-    
-    if (!dadosParaCriar.latitude) dadosParaCriar.latitude = coordsRegiao.lat;
-    if (!dadosParaCriar.longitude) dadosParaCriar.longitude = coordsRegiao.lon;
+const temLatitude = dadosParaCriar.latitude !== undefined &&
+                    dadosParaCriar.latitude !== null;
+
+const temLongitude = dadosParaCriar.longitude !== undefined &&
+                     dadosParaCriar.longitude !== null;
+
+let origemCoordenadas;
+
+if (temLatitude && temLongitude) {
+  origemCoordenadas = "INFORMADA";
+} else {
+  const ufMaiuscula = dadosParaCriar.uf.toUpperCase();
+  const coordsRegiao = coordenadasUf[ufMaiuscula];
+
+  if (coordsRegiao) {
+    dadosParaCriar.latitude = coordsRegiao.lat;
+    dadosParaCriar.longitude = coordsRegiao.lon;
+    origemCoordenadas = "ESTIMADA_POR_UF";
+  } else {
+    dadosParaCriar.latitude = -9.33;
+    dadosParaCriar.longitude = -40.60;
+    origemCoordenadas = "ESTIMADA_PADRAO_VALE";
   }
+}
 
-  const propriedade = await prisma.propriedade.create({
-    data: { ...dadosParaCriar, usuarioId: usuario.id },
-  });
-  
-  // Recem-criada: ainda nao tem lotes nem sensores.
-  return formatar(propriedade, 0);
+const propriedade = await prisma.propriedade.create({
+  data: {
+    ...dadosParaCriar,
+    origemCoordenadas,
+    usuarioId: usuario.id,
+  },
+});
+
+// Recem-criada: ainda nao tem lotes nem sensores.
+return formatar(propriedade, 0);
+
 }
 
 async function atualizar(id, dados, usuario) {
