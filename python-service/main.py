@@ -1,5 +1,8 @@
 import os
 import secrets
+import math
+
+from contextlib import asynccontextmanager
 
 from datetime import (
     date,
@@ -574,6 +577,15 @@ def calcular_gdd(leituras, parametros, ate):
 # Cadeia do frio e viabilidade da exportação
 # ==================================================
 
+def arredondar_margem(valor):
+    """Mesma precisão de quatro casas e desempate do Math.round do Node."""
+    fator = 10 ** 4
+    escalado = valor * fator
+    inferior = math.floor(escalado)
+    incremento = 1 if escalado - inferior >= 0.5 else 0
+    return (inferior + incremento) / fator
+
+
 def avaliar_exportacao(dados, rota):
     """
     Critérios:
@@ -592,12 +604,12 @@ def avaliar_exportacao(dados, rota):
         + rota.tempoEstimadoHoras
     )
 
-    margem_interna = (
+    margem_interna = arredondar_margem(
         dados.precoInternoKg
         - dados.custoInternoKg
     )
 
-    margem_exportacao = (
+    margem_exportacao = arredondar_margem(
         dados.precoExportacaoKg
         - dados.custoExportacaoKg
     )
@@ -947,33 +959,46 @@ def calcular(pedido):
 # Autenticação entre serviços
 # ==================================================
 
+def obter_token_servico():
+    token = os.getenv("PYTHON_RECOMMENDATION_TOKEN", "")
+
+    if not token.strip():
+        raise RuntimeError(
+            "PYTHON_RECOMMENDATION_TOKEN é obrigatório e não pode estar vazio."
+        )
+
+    return token
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Falha na inicialização se o serviço não possuir uma senha configurada.
+    obter_token_servico()
+    yield
+
+
 def autenticar(
     authorization: str | None = Header(
         default=None
     ),
 ):
-    token = os.getenv(
-        "PYTHON_RECOMMENDATION_TOKEN",
-        "",
-    )
+    try:
+        token = obter_token_servico()
+    except RuntimeError:
+        # Também recusa pedidos se a configuração desaparecer em execução.
+        raise HTTPException(
+            status_code=503,
+            detail="Serviço de recomendações indisponível.",
+        ) from None
 
-    if token:
-        recebido = (
-            authorization or ""
-        ).encode("utf-8")
+    recebido = (authorization or "").encode("utf-8")
+    esperado = f"Bearer {token}".encode("utf-8")
 
-        esperado = (
-            f"Bearer {token}"
-        ).encode("utf-8")
-
-        if not secrets.compare_digest(
-            recebido,
-            esperado,
-        ):
-            raise HTTPException(
-                status_code=401,
-                detail="Token de serviço inválido.",
-            )
+    if not secrets.compare_digest(recebido, esperado):
+        raise HTTPException(
+            status_code=401,
+            detail="Token de serviço inválido.",
+        )
 
 
 # ==================================================
@@ -983,6 +1008,7 @@ def autenticar(
 app = FastAPI(
     title="ValeSafra — Recomendações",
     version="1.1",
+    lifespan=lifespan,
 )
 
 

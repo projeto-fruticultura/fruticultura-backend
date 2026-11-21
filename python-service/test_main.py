@@ -90,14 +90,19 @@ class FixtureServico(unittest.TestCase):
         self.env = patch.dict(
             os.environ,
             {
-                "PYTHON_RECOMMENDATION_TOKEN": "",
+                "PYTHON_RECOMMENDATION_TOKEN": "token-exclusivo-dos-testes-python",
             },
         )
 
         self.env.start()
         self.addCleanup(self.env.stop)
 
-        self.client = TestClient(app)
+        self.client = self.enterContext(TestClient(
+            app,
+            headers={
+                "Authorization": "Bearer token-exclusivo-dos-testes-python",
+            },
+        ))
 
         self.payload = copy.deepcopy(
             exemplo()
