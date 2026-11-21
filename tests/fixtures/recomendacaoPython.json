@@ -1,0 +1,47 @@
+{
+  "contractVersion": "1.0",
+  "requestedAt": "2026-11-18T12:00:00Z",
+  "lote": {
+    "id": 19,
+    "faseFenologica": "MATURACAO"
+  },
+  "parametrosAgronomicos": {
+    "dataHoraReferencia": "2026-11-18T00:00:00Z",
+    "grausDiaReferencia": 120.0,
+    "temperaturaBaseC": 10.0,
+    "grausDiaAlvo": 120.0,
+    "chuvaMaximaMmDia": 5.0,
+    "umidadeArMaximaPercentual": 80.0,
+    "fonte": "EXEMPLO DE TESTE",
+    "versao": "teste-v1"
+  },
+  "historico": [],
+  "previsaoDiaria": {
+    "fonte": "SIMULADA",
+    "timezone": "UTC",
+    "dias": [
+      {
+        "data": "2026-11-18",
+        "temperaturaMediaC": 28.0,
+        "precipitacaoMm": 0.0,
+        "umidadeRelativaMediaPercentual": 65.0
+      }
+    ]
+  },
+  "logistica": {
+    "rotaId": 1,
+    "tempoEstimadoHoras": 4.0
+  },
+  "parametrosExportacao": {
+    "horasAteResfriamento": 2.0,
+    "vidaUtilHoras": 48.0,
+    "precoInternoKg": 5.0,
+    "precoExportacaoKg": 9.0,
+    "custoInternoKg": 1.0,
+    "custoExportacaoKg": 3.0,
+    "cadeiaFrioGarantida": true,
+    "moeda": "BRL",
+    "dataHoraCotacao": "2026-11-18T10:00:00Z",
+    "fonteCotacao": "SIMULADA"
+  }
+}

@@ -21,14 +21,8 @@ jobs:
 
     env:
       NODE_ENV: test
-
-      # Endereco propositalmente invalido.
-      # Os testes utilizam Prisma simulado.
       DATABASE_URL: postgresql://teste:teste@127.0.0.1:1/nao_existe?connect_timeout=1
-
-      # Valor exclusivo dos testes, sem acesso a producao.
       JWT_SECRET: segredo-exclusivo-do-ci-sem-acesso-a-producao
-
       LEITURAS_AGENDADOR_ATIVO: "false"
 
     steps:
@@ -91,3 +85,12 @@ jobs:
 
       - name: Testar tratamento e analise
         run: python -m unittest discover -s analise -v
+
+      - name: Configurar Node para integracao HTTP com Python
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Testar comunicacao HTTP real Node-Python
+        run: npm run test:integration:python
