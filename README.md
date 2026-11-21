@@ -36,8 +36,9 @@ Frontend na Vercel
 Amazon CloudFront (HTTPS)
         ↕ HTTP, porta 3000
 Backend Node.js na AWS (EC2)
-        ↕ Prisma ORM
-PostgreSQL no Amazon RDS (rede privada)
+   ↕ Prisma ORM          ↕ HTTP local, com token
+PostgreSQL no Amazon RDS   Serviço Python (FastAPI),
+(rede privada)             na mesma EC2, só em localhost
 ```
 
 Até a 1ª entrega o backend ficava no Render. Na 2ª entrega ele foi para a AWS (detalhes na seção [Deploy](#deploy)); a versão anterior no Render continua no ar durante a transição.
@@ -61,10 +62,11 @@ Diagrama completo da arquitetura (sensor, ThingSpeak, API e banco): [docs/arquit
 - JWT;
 - bcrypt;
 - NASA POWER API;
-- AWS (EC2, RDS, CloudFront e Systems Manager);
+- Python 3.12 e FastAPI (serviço de recomendações de colheita e exportação);
+- AWS (EC2, RDS, CloudFront, Systems Manager e IAM);
 - Render (versão anterior);
-- Git e GitHub;
-- ferramenta de testes a definir.
+- Git e GitHub, com GitHub Actions (testes e deploy);
+- Jest (testes do Node) e unittest (testes do Python).
 
 ## Responsabilidades do backend
 
@@ -1021,6 +1023,8 @@ O `.env` fica na raiz do projeto e **nunca vai para o Git** (está no `.gitignor
 | `THINGSPEAK_SENSOR_CODIGO` | Obrigatória só se o agendador estiver ligado. Código do sensor, cadastrado e ativo no banco, que recebe as leituras. | `ESP32-EXEMPLO-01` |
 | `LEITURAS_AGENDADOR_ATIVO` | Opcional. O agendador que busca as leituras no ThingSpeak vem **desligado** por padrão; só liga com exatamente `true`. | `false` |
 | `LEITURAS_INTERVALO_MIN` | Opcional. De quanto em quanto tempo o agendador busca, em minutos (inteiro de 1 a 1440). Se faltar, usa 5. | `5` |
+| `PYTHON_RECOMMENDATION_URL` | Endereço do serviço Python de recomendações. Sem ela, a rota `POST /api/lotes/:id/previsao` responde 503; o resto da API funciona. Na AWS, o serviço roda na mesma EC2 e só aceita conexões de `127.0.0.1`. | `http://127.0.0.1:8000` |
+| `PYTHON_RECOMMENDATION_TOKEN` | **Obrigatória para o serviço Python**: ele recusa subir com o token vazio. O Node envia o mesmo valor no header `Authorization: Bearer`. É segredo. | gerado como o `JWT_SECRET` |
 | `CONAB_AQUECER_AO_INICIAR` | Opcional. Vem **desligada** por padrão; só liga com exatamente `true`. Ligada, o servidor baixa o arquivo da CONAB (cerca de 180 MB) ao subir, em segundo plano, e o primeiro pedido a `/api/precos` já sai rápido. Para a demonstração, ligue-a. | `false` |
 
 Como gerar o seu `JWT_SECRET` (no cmd, na pasta do projeto):
@@ -1039,7 +1043,19 @@ Copie o valor gerado para a linha `JWT_SECRET="..."` do seu `.env`.
 
 ## Testes
 
-Ainda não há testes automatizados (não existe o script `npm test`). Os endpoints são testados manualmente: cada endpoint é testado assim que fica pronto, incluindo os casos de erro (dados inválidos, id inexistente, JSON malformado).
+Há testes automatizados no Node (Jest) e no serviço Python (unittest). Eles usam um Prisma simulado: não tocam em nenhum banco.
+
+```cmd
+npm test
+npm run test:unit
+npm run test:api
+```
+
+- `npm test` roda todos os testes do Node; `test:unit` roda só as regras de cálculo e `test:api` só os endpoints.
+- Python (na pasta do projeto): `python -m unittest discover -s python-service -v`.
+- Verificações de segurança: `npm run security:audit` (dependências vulneráveis) e `npm run security:check` (procura segredos no código).
+
+Um workflow do GitHub Actions (**ValeSafra - Testes e seguranca**) roda tudo isso a cada push e em pull requests para a `main`. Os endpoints novos continuam sendo conferidos manualmente assim que ficam prontos, incluindo os casos de erro (dados inválidos, id inexistente, JSON malformado).
 
 ## Deploy
 
@@ -1053,21 +1069,26 @@ URL pública da API: `https://d2nmqrbqvtvva2.cloudfront.net/api`. Região: `us-e
 
 | Serviço | Papel |
 |---|---|
-| Amazon EC2 (`valesafra-backend`, Ubuntu 24.04, `t3.small`) | Roda a API Node.js, mantida pelo pm2 (reinicia se cair). |
+| Amazon EC2 (`valesafra-backend`, Ubuntu 24.04, `t3.small`) | Roda a API Node.js e o serviço Python (FastAPI), ambos mantidos pelo pm2 (reiniciam se caírem). O Python só escuta em `127.0.0.1` e exige token. |
 | Amazon RDS (`valesafra-db`, PostgreSQL, `db.t4g.micro`) | Banco de dados, sem acesso público: só a EC2 alcança, por regra de security group. Criptografado, com backup automático e proteção contra exclusão. |
 | Amazon CloudFront (`valesafra-api`) | Entrega a API em HTTPS. O frontend na Vercel usa HTTPS e não pode chamar uma API em HTTP. |
-| AWS Systems Manager (Session Manager) | Acesso administrativo à EC2 sem abrir a porta SSH. |
+| AWS Systems Manager (Session Manager) | Acesso administrativo à EC2 sem abrir a porta SSH. Também executa o comando de deploy. |
+| AWS IAM | Role `github-actions-deploy-valesafra`: o GitHub Actions entra por OIDC, sem chave guardada, só neste repositório e na branch `main`, com permissão mínima para rodar o script de deploy nesta EC2. |
 | Security groups | A porta 3000 da EC2 só aceita o CloudFront; o RDS só aceita a EC2. |
 
 Os segredos (`DATABASE_URL`, `JWT_SECRET` e demais) ficam em um arquivo de variáveis **fora do repositório**, no servidor, carregado ao iniciar a API. Nunca vão para o Git, para este README ou para o chat.
 
-### Atualizar a API na EC2 (manual, sem pipeline automático)
+### Atualizar a API na EC2
+
+**Automático (padrão).** Quando o CI da `main` termina verde depois de um push, o workflow **ValeSafra - Deploy AWS** entra na AWS por OIDC (sem chave guardada) e manda a EC2 rodar o script de deploy, que atualiza o código e reinicia a API e o serviço Python. Também dá para rodar na mão: aba **Actions → ValeSafra - Deploy AWS → Run workflow**. Pull requests e forks nunca disparam o deploy.
+
+**As migrations do banco não rodam sozinhas.** Se houver migration pendente, o script para antes de reiniciar a API e avisa no log. Aí, manualmente:
 
 1. Conectar à EC2 pelo Session Manager (console da AWS).
-2. Na pasta do projeto: `git pull` e `npm install`.
-3. Migrations novas, se houver: somente `npx prisma migrate deploy`, depois de revisar. **Nunca** `migrate reset`, `migrate dev` nem `db push` no banco de produção.
-4. Reiniciar a API: `pm2 restart valesafra-api`.
-5. Testar: fazer login pelo frontend e conferir se os dados aparecem.
+2. Somente `npx prisma migrate deploy`, depois de revisar a migration. **Nunca** `migrate reset`, `migrate dev` nem `db push` no banco de produção.
+3. Rodar o deploy de novo (Run workflow).
+
+Para conferir depois do deploy: `pm2 status` na EC2 (os dois serviços `online`) e login pelo frontend.
 
 Se o frontend estiver em um endereço novo, inclua esse endereço no `CORS_ORIGIN` do servidor e reinicie a API; sem isso o navegador bloqueia o login (erro de CORS).
 
@@ -1076,7 +1097,7 @@ Se o frontend estiver em um endereço novo, inclua esse endereço no `CORS_ORIGI
 - O trecho CloudFront → EC2 usa HTTP (o tráfego do usuário até o CloudFront é HTTPS). Uma melhoria futura é colocar HTTPS também na EC2.
 - Há uma única instância de API e um único banco, sem Multi-AZ; o backup automático guarda 1 dia.
 - A EC2 não tem IP fixo: se for parada e iniciada, o endereço público muda e a origem do CloudFront precisa ser atualizada.
-- O deploy é manual.
+- O deploy da API é automático, mas as migrations do banco continuam manuais.
 
 ### Versão anterior (Render)
 
