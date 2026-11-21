@@ -1023,7 +1023,7 @@ O `.env` fica na raiz do projeto e **nunca vai para o Git** (está no `.gitignor
 | `THINGSPEAK_SENSOR_CODIGO` | Obrigatória só se o agendador estiver ligado. Código do sensor, cadastrado e ativo no banco, que recebe as leituras. | `ESP32-EXEMPLO-01` |
 | `LEITURAS_AGENDADOR_ATIVO` | Opcional. O agendador que busca as leituras no ThingSpeak vem **desligado** por padrão; só liga com exatamente `true`. | `false` |
 | `LEITURAS_INTERVALO_MIN` | Opcional. De quanto em quanto tempo o agendador busca, em minutos (inteiro de 1 a 1440). Se faltar, usa 5. | `5` |
-| `PYTHON_RECOMMENDATION_URL` | Endereço do serviço Python de recomendações. Sem ela, a rota `POST /api/lotes/:id/previsao` responde 503; o resto da API funciona. Na AWS, o serviço roda na mesma EC2 e só aceita conexões de `127.0.0.1`. | `http://127.0.0.1:8000` |
+| `PYTHON_RECOMMENDATION_URL` | Endereço **completo** da rota do serviço Python de recomendações, com o caminho no final (o Node chama exatamente o valor configurado, sem acrescentar nada). Sem ela, a rota `POST /api/lotes/:id/previsao` responde 503; o resto da API funciona. Na AWS, o serviço roda na mesma EC2 e só aceita conexões de `127.0.0.1`. | `http://127.0.0.1:8000/v1/recommendations/harvest-export` |
 | `PYTHON_RECOMMENDATION_TOKEN` | **Obrigatória para o serviço Python**: ele recusa subir com o token vazio. O Node envia o mesmo valor no header `Authorization: Bearer`. É segredo. | gerado como o `JWT_SECRET` |
 | `CONAB_AQUECER_AO_INICIAR` | Opcional. Vem **desligada** por padrão; só liga com exatamente `true`. Ligada, o servidor baixa o arquivo da CONAB (cerca de 180 MB) ao subir, em segundo plano, e o primeiro pedido a `/api/precos` já sai rápido. Para a demonstração, ligue-a. | `false` |
 
