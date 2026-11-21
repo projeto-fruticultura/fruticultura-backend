@@ -6,6 +6,11 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 
+const swaggerUi = require("swagger-ui-express");
+const YAML = require("yaml");
+const fs = require("node:fs");
+const path = require("node:path");
+
 const routes = require("./routes");
 const contexto = require("./config/contexto");
 
@@ -85,6 +90,20 @@ app.use(
 );
 
 app.use("/api", routes);
+
+// Documentação interativa da API (Swagger).
+const swaggerDocument = YAML.parse(
+  fs.readFileSync(
+    path.join(__dirname, "../docs/openapi.yaml"),
+    "utf8"
+  )
+);
+
+app.use(
+  "/api-docs",
+  swaggerUi.serve,
+  swaggerUi.setup(swaggerDocument)
+);
 
 app.use(rotaNaoEncontrada);
 app.use(tratarErros);

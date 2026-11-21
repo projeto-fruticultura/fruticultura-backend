@@ -1,0 +1,1474 @@
+openapi: 3.0.3
+info:
+  title: ValeSafra — API
+  version: 1.0.0
+  description: 'Documentação da API do ValeSafra, plataforma de monitoramento climático, produção agrícola, mercado
+    e logística. Os endpoints protegidos utilizam JWT no cabeçalho Authorization: Bearer.'
+servers:
+- url: http://localhost:3000/api
+  description: Ambiente local
+- url: https://SEU_BACKEND_PUBLICADO/api
+  description: Ambiente publicado — substituir pela URL real
+tags:
+- name: Sistema
+- name: Autenticação
+- name: Usuários
+- name: Culturas
+- name: Propriedades
+- name: Lotes
+- name: Sensores
+- name: Leituras
+- name: Alertas
+- name: Dashboard
+- name: Logística
+- name: Mercado
+- name: Cotações de mercado
+- name: Recomendações
+paths:
+  /auth/login:
+    post:
+      tags:
+      - Autenticação
+      summary: Realizar login
+      description: Autenticação pública. O endpoint aplica limite de tentativas.
+      responses:
+        '200':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - email
+              - senha
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: produtor@exemplo.com
+                senha:
+                  type: string
+                  format: password
+                  example: Senha123
+  /auth/me:
+    get:
+      tags:
+      - Autenticação
+      summary: Consultar usuário autenticado
+      description: Consultar usuário autenticado
+      responses:
+        '200':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+  /auth/logout:
+    post:
+      tags:
+      - Autenticação
+      summary: Encerrar sessão no cliente
+      description: O token é stateless; o cliente deve descartar o token.
+      responses:
+        '204':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+  /health:
+    get:
+      tags:
+      - Sistema
+      summary: Verificar disponibilidade
+      description: Endpoint público de health check.
+      responses:
+        '200':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+  /metricas:
+    get:
+      tags:
+      - Sistema
+      summary: Consultar métricas
+      description: 'Acesso restrito ao perfil ADMIN.
+
+
+        **Perfis autorizados:** ADMIN.'
+      responses:
+        '200':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+  /auditoria:
+    get:
+      tags:
+      - Sistema
+      summary: Consultar auditoria
+      description: 'Lista até 50 registros por página.
+
+
+        **Perfis autorizados:** ADMIN.'
+      responses:
+        '200':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: pagina
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+  /culturas:
+    get:
+      tags:
+      - Culturas
+      summary: Listar culturas
+      description: Listar culturas
+      responses:
+        '200':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+    post:
+      tags:
+      - Culturas
+      summary: Cadastrar cultura
+      description: 'Somente ADMIN.
+
+
+        **Perfis autorizados:** ADMIN.'
+      responses:
+        '201':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: &id001
+              type: object
+              additionalProperties: true
+              description: Objeto JSON. Consulte as regras de validação do endpoint no backend.
+  /culturas/{id}:
+    get:
+      tags:
+      - Culturas
+      summary: Consultar cultura
+      description: Consultar cultura
+      responses:
+        '200':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/Id'
+    put:
+      tags:
+      - Culturas
+      summary: Atualizar cultura
+      description: 'Somente ADMIN.
+
+
+        **Perfis autorizados:** ADMIN.'
+      responses:
+        '200':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: *id001
+    delete:
+      tags:
+      - Culturas
+      summary: Remover cultura
+      description: 'Somente ADMIN.
+
+
+        **Perfis autorizados:** ADMIN.'
+      responses:
+        '204':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/Id'
+  /culturas/{id}/detalhes:
+    get:
+      tags:
+      - Culturas
+      summary: Consultar detalhes da cultura
+      description: Consultar detalhes da cultura
+      responses:
+        '200':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/Id'
+  /propriedades:
+    get:
+      tags:
+      - Propriedades
+      summary: Listar propriedades
+      description: Acesso autenticado; listagem respeita o escopo do usuário.
+      responses:
+        '200':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+    post:
+      tags:
+      - Propriedades
+      summary: Cadastrar propriedade
+      description: 'Somente ADMIN e PRODUTOR.
+
+
+        **Perfis autorizados:** ADMIN, PRODUTOR.'
+      responses:
+        '201':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: *id001
+  /propriedades/{id}:
+    get:
+      tags:
+      - Propriedades
+      summary: Consultar propriedade
+      description: Consultar propriedade
+      responses:
+        '200':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/Id'
+    put:
+      tags:
+      - Propriedades
+      summary: Atualizar propriedade
+      description: 'Somente ADMIN e PRODUTOR.
+
+
+        **Perfis autorizados:** ADMIN, PRODUTOR.'
+      responses:
+        '200':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: *id001
+    delete:
+      tags:
+      - Propriedades
+      summary: Remover propriedade
+      description: 'Somente ADMIN e PRODUTOR.
+
+
+        **Perfis autorizados:** ADMIN, PRODUTOR.'
+      responses:
+        '204':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/Id'
+  /propriedades/{id}/clima:
+    get:
+      tags:
+      - Propriedades
+      summary: Consultar clima da propriedade
+      description: Consultar clima da propriedade
+      responses:
+        '200':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/Id'
+  /sensores:
+    get:
+      tags:
+      - Sensores
+      summary: Listar sensores
+      description: Listar sensores
+      responses:
+        '200':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+    post:
+      tags:
+      - Sensores
+      summary: Cadastrar sensor
+      description: 'Somente ADMIN e PRODUTOR.
+
+
+        **Perfis autorizados:** ADMIN, PRODUTOR.'
+      responses:
+        '201':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: &id002
+              type: object
+              required:
+              - codigo
+              - tipo
+              - dataInstalacao
+              - loteId
+              properties:
+                codigo:
+                  type: string
+                  example: SEN-001
+                tipo:
+                  type: string
+                  example: DHT22
+                localizacao:
+                  type: string
+                  nullable: true
+                dataInstalacao:
+                  type: string
+                  format: date
+                  example: '2026-11-20'
+                loteId:
+                  type: integer
+                  example: 1
+  /sensores/config:
+    post:
+      tags:
+      - Sensores
+      summary: Configurar integração ThingSpeak
+      description: 'Somente ADMIN e TECNICO. A chave é segredo e não deve ser compartilhada.
+
+
+        **Perfis autorizados:** ADMIN, TECNICO.'
+      responses:
+        '200':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - sensorId
+              - channelId
+              - readApiKey
+              properties:
+                sensorId:
+                  type: integer
+                  example: 1
+                channelId:
+                  type: string
+                  pattern: ^[0-9]{1,20}$
+                  example: '123456'
+                readApiKey:
+                  type: string
+                  example: CHAVE_DE_LEITURA
+  /sensores/{id}:
+    get:
+      tags:
+      - Sensores
+      summary: Consultar sensor
+      description: Consultar sensor
+      responses:
+        '200':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/Id'
+    put:
+      tags:
+      - Sensores
+      summary: Atualizar sensor
+      description: 'Somente ADMIN e PRODUTOR.
+
+
+        **Perfis autorizados:** ADMIN, PRODUTOR.'
+      responses:
+        '200':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: *id002
+    delete:
+      tags:
+      - Sensores
+      summary: Remover sensor
+      description: 'Somente ADMIN e PRODUTOR.
+
+
+        **Perfis autorizados:** ADMIN, PRODUTOR.'
+      responses:
+        '204':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/Id'
+  /sensores/{id}/leituras:
+    get:
+      tags:
+      - Sensores
+      summary: Consultar leituras do sensor
+      description: Consultar leituras do sensor
+      responses:
+        '200':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      - name: periodo
+        in: query
+        schema:
+          type: string
+          enum:
+          - 24h
+          - 7d
+          - 30d
+  /sensores/{id}/indicadores:
+    get:
+      tags:
+      - Sensores
+      summary: Consultar indicadores climáticos
+      description: Consultar indicadores climáticos
+      responses:
+        '200':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/Id'
+  /lotes:
+    get:
+      tags:
+      - Lotes
+      summary: Listar lotes
+      description: Listar lotes
+      responses:
+        '200':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+    post:
+      tags:
+      - Lotes
+      summary: Cadastrar lote
+      description: 'Somente ADMIN e PRODUTOR.
+
+
+        **Perfis autorizados:** ADMIN, PRODUTOR.'
+      responses:
+        '201':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: *id001
+  /lotes/{id}:
+    get:
+      tags:
+      - Lotes
+      summary: Consultar lote
+      description: Consultar lote
+      responses:
+        '200':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/Id'
+    put:
+      tags:
+      - Lotes
+      summary: Atualizar lote
+      description: 'Somente ADMIN e PRODUTOR.
+
+
+        **Perfis autorizados:** ADMIN, PRODUTOR.'
+      responses:
+        '200':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: *id001
+    delete:
+      tags:
+      - Lotes
+      summary: Remover lote
+      description: 'Exclusão lógica; pode exigir ?confirmar=true quando houver sensores ativos. Somente ADMIN e
+        PRODUTOR.
+
+
+        **Perfis autorizados:** ADMIN, PRODUTOR.'
+      responses:
+        '204':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      - name: confirmar
+        in: query
+        schema:
+          type: boolean
+  /lotes/{id}/recomendacoes:
+    post:
+      tags:
+      - Lotes
+      summary: Gerar recomendações
+      description: 'Somente ADMIN e TECNICO.
+
+
+        **Perfis autorizados:** ADMIN, TECNICO.'
+      responses:
+        '200':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: *id001
+  /lotes/{id}/janelas:
+    post:
+      tags:
+      - Recomendações
+      summary: Consultar janelas recomendadas
+      description: 'Endpoint sujeito a limite de consultas por usuário.
+
+
+        **Perfis autorizados:** ADMIN, TECNICO, PRODUTOR.'
+      responses:
+        '200':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: *id001
+  /lotes/{id}/previsao:
+    post:
+      tags:
+      - Recomendações
+      summary: Consultar previsão por modelo Python
+      description: 'Endpoint sujeito a limite de consultas por usuário.
+
+
+        **Perfis autorizados:** ADMIN, TECNICO, PRODUTOR.'
+      responses:
+        '200':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: *id001
+  /leituras:
+    get:
+      tags:
+      - Leituras
+      summary: Listar leituras
+      description: Listar leituras
+      responses:
+        '200':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+  /alertas:
+    get:
+      tags:
+      - Alertas
+      summary: Listar alertas calculados
+      description: Listar alertas calculados
+      responses:
+        '200':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+  /alertas/riscos:
+    get:
+      tags:
+      - Alertas
+      summary: Consultar histórico de alertas de risco
+      description: Consultar histórico de alertas de risco
+      responses:
+        '200':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+  /logistica:
+    get:
+      tags:
+      - Logística
+      summary: Listar opções logísticas
+      description: Listar opções logísticas
+      responses:
+        '200':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+    post:
+      tags:
+      - Logística
+      summary: Cadastrar opção logística
+      description: 'Somente ADMIN e PRODUTOR.
+
+
+        **Perfis autorizados:** ADMIN, PRODUTOR.'
+      responses:
+        '201':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: *id001
+  /logistica/comparar:
+    get:
+      tags:
+      - Logística
+      summary: Comparar logística
+      description: Informe de 2 a 10 IDs de propriedades, separados por vírgula.
+      responses:
+        '200':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: propriedadeIds
+        in: query
+        required: true
+        schema:
+          type: string
+          example: 1,2
+  /logistica/{id}:
+    get:
+      tags:
+      - Logística
+      summary: Consultar opção logística
+      description: Consultar opção logística
+      responses:
+        '200':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/Id'
+    put:
+      tags:
+      - Logística
+      summary: Atualizar opção logística
+      description: 'Somente ADMIN e PRODUTOR.
+
+
+        **Perfis autorizados:** ADMIN, PRODUTOR.'
+      responses:
+        '200':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: *id001
+    delete:
+      tags:
+      - Logística
+      summary: Remover opção logística
+      description: 'Somente ADMIN e PRODUTOR.
+
+
+        **Perfis autorizados:** ADMIN, PRODUTOR.'
+      responses:
+        '204':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/Id'
+  /dashboard/resumo:
+    get:
+      tags:
+      - Dashboard
+      summary: Consultar resumo do dashboard
+      description: Consultar resumo do dashboard
+      responses:
+        '200':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+  /dashboard/medias:
+    get:
+      tags:
+      - Dashboard
+      summary: Consultar médias do dashboard
+      description: Consultar médias do dashboard
+      responses:
+        '200':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+  /precos:
+    get:
+      tags:
+      - Mercado
+      summary: Consultar preços públicos da CONAB
+      description: Endpoint público.
+      responses:
+        '200':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+  /mercado/cotacoes:
+    get:
+      tags:
+      - Cotações de mercado
+      summary: Listar cotações
+      description: Listar cotações
+      responses:
+        '200':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+    post:
+      tags:
+      - Cotações de mercado
+      summary: Cadastrar cotação
+      description: 'Somente ADMIN.
+
+
+        **Perfis autorizados:** ADMIN.'
+      responses:
+        '201':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: *id001
+  /mercado/cotacoes/{id}:
+    get:
+      tags:
+      - Cotações de mercado
+      summary: Consultar cotação
+      description: Consultar cotação
+      responses:
+        '200':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/Id'
+    put:
+      tags:
+      - Cotações de mercado
+      summary: Atualizar cotação
+      description: 'Somente ADMIN.
+
+
+        **Perfis autorizados:** ADMIN.'
+      responses:
+        '200':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: *id001
+    delete:
+      tags:
+      - Cotações de mercado
+      summary: Remover cotação
+      description: 'Somente ADMIN.
+
+
+        **Perfis autorizados:** ADMIN.'
+      responses:
+        '204':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/Id'
+  /usuarios:
+    get:
+      tags:
+      - Usuários
+      summary: Listar usuários
+      description: 'Somente ADMIN.
+
+
+        **Perfis autorizados:** ADMIN.'
+      responses:
+        '200':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+    post:
+      tags:
+      - Usuários
+      summary: Cadastrar usuário
+      description: 'Somente ADMIN; não existe cadastro público.
+
+
+        **Perfis autorizados:** ADMIN.'
+      responses:
+        '201':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - nome
+              - email
+              - senha
+              - perfil
+              properties:
+                nome:
+                  type: string
+                  example: Maria Silva
+                email:
+                  type: string
+                  format: email
+                senha:
+                  type: string
+                  format: password
+                  minLength: 8
+                perfil:
+                  type: string
+                  enum:
+                  - PRODUTOR
+                  - TECNICO
+                  - ADMIN
+  /usuarios/{id}:
+    put:
+      tags:
+      - Usuários
+      summary: Atualizar usuário
+      description: 'Somente ADMIN.
+
+
+        **Perfis autorizados:** ADMIN.'
+      responses:
+        '200':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: *id001
+    delete:
+      tags:
+      - Usuários
+      summary: Inativar usuário
+      description: 'Exclusão lógica: o registro é mantido e o usuário fica INATIVO. Somente ADMIN.
+
+
+        **Perfis autorizados:** ADMIN.'
+      responses:
+        '204':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/Id'
+  /usuarios/{id}/propriedades:
+    get:
+      tags:
+      - Usuários
+      summary: Listar propriedades vinculadas ao técnico
+      description: 'Somente ADMIN.
+
+
+        **Perfis autorizados:** ADMIN.'
+      responses:
+        '200':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/Id'
+    put:
+      tags:
+      - Usuários
+      summary: Substituir vínculos do técnico
+      description: 'A lista propriedadeIds substitui todos os vínculos atuais; lista vazia remove todos. Somente
+        ADMIN.
+
+
+        **Perfis autorizados:** ADMIN.'
+      responses:
+        '200':
+          description: Operação realizada com sucesso.
+        '400':
+          $ref: '#/components/responses/ErroValidacao'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - propriedadeIds
+              properties:
+                propriedadeIds:
+                  type: array
+                  items:
+                    type: integer
+                  example:
+                  - 1
+                  - 2
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Informe somente o token JWT. O prefixo Bearer é aplicado automaticamente.
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      description: Identificador numérico do recurso.
+      schema:
+        type: integer
+        minimum: 1
+  responses:
+    ErroValidacao:
+      description: Dados ou parâmetros inválidos.
+    NaoAutenticado:
+      description: Token ausente, inválido ou expirado.
+    SemPermissao:
+      description: Perfil sem autorização para esta operação.
+    ErroInterno:
+      description: Erro interno inesperado.
