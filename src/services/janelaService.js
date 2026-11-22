@@ -200,6 +200,11 @@ function metadadosContexto(
       latitude: contexto.latitude,
       longitude: contexto.longitude,
       origem: contexto.origemCoordenadas,
+      estimadasUf: (
+        contexto.lote.latitude == null && contexto.lote.propriedade.latitudeEstimadaUf === true
+      ) || (
+        contexto.lote.longitude == null && contexto.lote.propriedade.longitudeEstimadaUf === true
+      ),
     },
   };
 }

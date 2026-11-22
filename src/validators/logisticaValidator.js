@@ -315,6 +315,43 @@ function lerIdNumerico(
   return valor;
 }
 
+function lerResfriamento(corpo, campos) {
+  const nomes = ["colhidoEm", "resfriadoEm", "temperaturaResfriamentoC"];
+  if (nomes.every((nome) => corpo[nome] === undefined)) return {};
+  if (nomes.every((nome) => corpo[nome] === null)) {
+    return { colhidoEm: null, resfriadoEm: null, temperaturaResfriamentoC: null };
+  }
+
+  function lerInstante(nome) {
+    const valor = corpo[nome];
+    const partes = typeof valor === "string" &&
+      /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,3}))?Z$/.exec(valor);
+    const data = partes ? new Date(valor) : null;
+    if (!data || !Number.isFinite(+data) ||
+        data.toISOString() !== `${partes[1]}.${(partes[2] || "").padEnd(3, "0")}Z` ||
+        data.getTime() > Date.now()) {
+      campos[nome] = "Informe uma data e hora válidas que já ocorreram.";
+      return undefined;
+    }
+    return data;
+  }
+
+  const colhidoEm = lerInstante("colhidoEm");
+  const resfriadoEm = lerInstante("resfriadoEm");
+  if (colhidoEm && resfriadoEm && resfriadoEm < colhidoEm) {
+    campos.resfriadoEm = "O resfriamento deve acontecer a partir da colheita.";
+  }
+
+  const temperaturaResfriamentoC = corpo.temperaturaResfriamentoC;
+  if (typeof temperaturaResfriamentoC !== "number" ||
+      !Number.isFinite(temperaturaResfriamentoC) ||
+      temperaturaResfriamentoC < -273.15 || temperaturaResfriamentoC > 100) {
+    campos.temperaturaResfriamentoC = "Informe a temperatura medida entre -273,15 °C e 100 °C.";
+  }
+
+  return { colhidoEm, resfriadoEm, temperaturaResfriamentoC };
+}
+
 // POST e PUT /api/logistica.
 // No PUT, campos omitidos preservam os valores anteriores.
 function validarLogistica(corpo, modo) {
@@ -425,6 +462,8 @@ function validarLogistica(corpo, modo) {
       dados.exigeRefrigeracaoRapida = valor;
     }
   }
+
+  Object.assign(dados, lerResfriamento(corpo, campos));
 
   if (criar) {
     dados.propriedadeId = lerIdNumerico(

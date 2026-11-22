@@ -53,6 +53,8 @@ model Propriedade {
   cidade       String   @db.VarChar(100)
   latitude     Decimal  @db.Decimal(10, 8)
   longitude    Decimal  @db.Decimal(11, 8)
+  latitudeEstimadaUf  Boolean?
+  longitudeEstimadaUf Boolean?
   status       Status   @default(ATIVO)
   usuarioId    Int
   criadoEm     DateTime @default(now())
@@ -146,6 +148,9 @@ model RotaLogistica {
   // Declaração do operador para a carga planejada.
   // null significa que essa informação não foi fornecida.
   exigeRefrigeracaoRapida Boolean?
+  colhidoEm                  DateTime?
+  resfriadoEm                DateTime?
+  temperaturaResfriamentoC  Float?
 
   status       Status   @default(ATIVO)
   criadoEm     DateTime @default(now())
