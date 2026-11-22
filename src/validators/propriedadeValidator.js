@@ -77,8 +77,8 @@ function validarPropriedade(corpo) {
     area,
     cidade: corpo.cidade.trim(),
     uf: uf.trim().toUpperCase(),
-    latitude: corpo.latitude,
-    longitude: corpo.longitude,
+    latitude: typeof corpo.latitude === "number" ? corpo.latitude : undefined,
+    longitude: typeof corpo.longitude === "number" ? corpo.longitude : undefined,
   };
 }
 

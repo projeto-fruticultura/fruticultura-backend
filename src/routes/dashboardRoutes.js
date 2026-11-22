@@ -1,6 +1,6 @@
 const { Router } = require("express");
 const controller = require("../controllers/dashboardController");
-const { autenticar } = require("../middlewares/autenticar");
+const { autenticar, exigirPerfil } = require("../middlewares/autenticar");
 
 const router = Router();
 
@@ -11,5 +11,9 @@ router.use(autenticar);
 // Caminhos sem "/dashboard": o prefixo e definido em routes/index.js.
 router.get("/resumo", controller.resumo);
 router.get("/medias", controller.medias);
+
+const produtor = exigirPerfil("PRODUTOR");
+router.get("/produtor/areas", produtor, controller.areasProdutor);
+router.get("/produtor/alertas-do-dia", produtor, controller.alertasProdutor);
 
 module.exports = router;

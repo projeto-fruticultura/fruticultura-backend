@@ -1,4 +1,5 @@
 const prisma = require("../config/prisma");
+const { Prisma } = require("@prisma/client");
 const { ErroHttp } = require("../middlewares/erros");
 const { filtroPropriedade } = require("./escopoDono");
 
@@ -23,14 +24,22 @@ async function contarSensores(propriedadeIds) {
   return totais;
 }
 
+function estimadaPorUf(propriedade) {
+  const { latitudeEstimadaUf, longitudeEstimadaUf } = propriedade;
+  if (latitudeEstimadaUf === true || longitudeEstimadaUf === true) return true;
+  if (latitudeEstimadaUf === false && longitudeEstimadaUf === false) return false;
+  return null;
+}
+
 // O Prisma devolve Decimal (que vira texto no JSON); o front espera numero.
 function formatar(propriedade, totalSensores) {
-  const { _count, ...campos } = propriedade;
+  const { _count, latitudeEstimadaUf, longitudeEstimadaUf, ...campos } = propriedade;
   return {
     ...campos,
     area: Number(campos.area),
     latitude: Number(campos.latitude),
     longitude: Number(campos.longitude),
+    coordenadasEstimadasUf: estimadaPorUf({ latitudeEstimadaUf, longitudeEstimadaUf }),
     totalLotes: _count ? _count.lotes : 0,
     totalSensores,
   };
@@ -40,7 +49,7 @@ async function listar(usuario) {
   const propriedades = await prisma.propriedade.findMany({
     where: { status: "ATIVO", AND: [filtroPropriedade(usuario)] },
     orderBy: { nome: "asc" },
-    select: { id: true, nome: true, cidade: true, uf: true, _count: { select: { lotes: true } } },
+    select: { id: true, nome: true, cidade: true, uf: true, latitudeEstimadaUf: true, longitudeEstimadaUf: true, _count: { select: { lotes: true } } },
   });
 
   const sensores = await contarSensores(propriedades.map((p) => p.id));
@@ -50,6 +59,7 @@ async function listar(usuario) {
     nome: p.nome,
     cidade: p.cidade,
     uf: p.uf,
+    coordenadasEstimadasUf: estimadaPorUf(p),
     totalLotes: p._count.lotes,
     totalSensores: sensores.get(p.id) || 0,
   }));
@@ -103,33 +113,53 @@ async function criar(dados, usuario) {
     TO: { lat: -10.17, lon: -48.33 }
   };
 
-  let dadosParaCriar = { ...dados };
-
-  // 2. Se a UF foi informada mas latitude/longitude vieram vazias, preenche automaticamente
-  if (dadosParaCriar.uf && (!dadosParaCriar.latitude || !dadosParaCriar.longitude)) {
-    const ufMaiuscula = dadosParaCriar.uf.toUpperCase();
-    const coordsRegiao = coordenadasUf[ufMaiuscula] || { lat: -9.33, lon: -40.60 }; // Padrão Vale se não achar
-    
-    if (!dadosParaCriar.latitude) dadosParaCriar.latitude = coordsRegiao.lat;
-    if (!dadosParaCriar.longitude) dadosParaCriar.longitude = coordsRegiao.lon;
-  }
-
+  const { lat, lon } = coordenadasUf[dados.uf];
   const propriedade = await prisma.propriedade.create({
-    data: { ...dadosParaCriar, usuarioId: usuario.id },
+    data: {
+      ...dados,
+      latitude: dados.latitude ?? lat,
+      longitude: dados.longitude ?? lon,
+      latitudeEstimadaUf: dados.latitude == null,
+      longitudeEstimadaUf: dados.longitude == null,
+      usuarioId: usuario.id,
+    },
   });
-  
+
   // Recem-criada: ainda nao tem lotes nem sensores.
   return formatar(propriedade, 0);
 }
 
 async function atualizar(id, dados, usuario) {
-  // updateMany permite filtrar por status e dono: so edita se existir, estiver ATIVA
-  // e for do usuario. Outro dono conta como 0 linhas, ou seja, 404.
-  const { count } = await prisma.propriedade.updateMany({
-    where: { id, status: "ATIVO", AND: [filtroPropriedade(usuario)] },
-    data: dados,
-  });
-  if (count === 0) throw new ErroHttp(404, ERRO_NAO_ENCONTRADA);
+  const where = { id, status: "ATIVO", AND: [filtroPropriedade(usuario)] };
+  const data = { ...dados };
+  const coordenadas = ["latitude", "longitude"].filter((campo) => dados[campo] !== undefined);
+
+  if (coordenadas.length) {
+    const atual = await prisma.propriedade.findFirst({
+      where,
+      select: { latitude: true, longitude: true },
+    });
+    if (!atual) throw new ErroHttp(404, ERRO_NAO_ENCONTRADA);
+
+    // Protege a origem da coordenada se outra edição ocorrer entre a leitura e a gravação.
+    Object.assign(where, atual);
+    for (const campo of coordenadas) {
+      if (!new Prisma.Decimal(atual[campo]).equals(new Prisma.Decimal(dados[campo]).toDecimalPlaces(8))) {
+        data[`${campo}EstimadaUf`] = false;
+      }
+    }
+  }
+
+  const { count } = await prisma.propriedade.updateMany({ where, data });
+  if (count === 0) {
+    if (coordenadas.length && await prisma.propriedade.findFirst({
+      where: { id, status: "ATIVO", AND: [filtroPropriedade(usuario)] },
+      select: { id: true },
+    })) {
+      throw new ErroHttp(409, "As coordenadas foram alteradas em outra edição. Atualize a página.");
+    }
+    throw new ErroHttp(404, ERRO_NAO_ENCONTRADA);
+  }
 
   return buscarPorId(id, usuario);
 }

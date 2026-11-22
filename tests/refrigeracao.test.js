@@ -225,3 +225,22 @@ test(
     ).not.toHaveBeenCalled();
   }
 );
+test("medição de resfriamento é atualizada ou removida como um conjunto", () => {
+  const colhidoEm = "2026-01-01T08:00:00.000Z";
+  const resfriadoEm = "2026-01-01T14:00:00.000Z";
+  expect(validarLogistica({
+    colhidoEm, resfriadoEm, temperaturaResfriamentoC: 0,
+  }, "atualizar")).toEqual({
+    colhidoEm: new Date(colhidoEm),
+    resfriadoEm: new Date(resfriadoEm),
+    temperaturaResfriamentoC: 0,
+  });
+
+  expect(() => validarLogistica({ colhidoEm }, "atualizar")).toThrow("Dados inválidos.");
+  expect(() => validarLogistica({
+    colhidoEm: resfriadoEm, resfriadoEm: colhidoEm, temperaturaResfriamentoC: 0,
+  }, "atualizar")).toThrow("Dados inválidos.");
+
+  const semMedicao = { colhidoEm: null, resfriadoEm: null, temperaturaResfriamentoC: null };
+  expect(validarLogistica(semMedicao, "atualizar")).toEqual(semMedicao);
+});
