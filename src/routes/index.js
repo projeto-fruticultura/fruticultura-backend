@@ -1,5 +1,6 @@
 const { Router } = require("express");
 
+const produtividadeRoutes = require("./produtividadeRoutes");
 const culturaRoutes = require("./culturaRoutes");
 const propriedadeRoutes = require("./propriedadeRoutes");
 const sensorRoutes = require("./sensorRoutes");
@@ -109,5 +110,8 @@ routes.use("/auth", authRoutes);
 
 // Gestão de usuários protegida no usuarioRoutes.
 routes.use("/usuarios", usuarioRoutes);
+
+// Consulta autenticada de previsões experimentais de produtividade.
+routes.use("/produtividade", produtividadeRoutes);
 
 module.exports = routes;
