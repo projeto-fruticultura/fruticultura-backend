@@ -1,0 +1,6594 @@
+openapi: 3.0.3
+info:
+  title: ValeSafra — API
+  version: 1.0.0
+  description: Documentação alinhada à main 5269209. Use JWT em Authorize para rotas protegidas. ADMIN possui
+    escopo global; PRODUTOR acessa propriedades próprias; TECNICO acessa propriedades vinculadas. Recursos
+    fora do escopo podem retornar 404. IDs dos exemplos precisam existir no ambiente. Credenciais dos exemplos
+    são fictícias. Corpo JSON limitado a 100kb.
+servers:
+  - url: /api
+    description: Mesmo servidor da documentação — recomendado
+  - url: http://localhost:3000/api
+    description: Desenvolvimento local
+  - url: https://d2nmqrbqvtvva2.cloudfront.net/api
+    description: API AWS indicada no README da main
+tags:
+  - name: Sistema
+  - name: Autenticação
+  - name: Usuários
+  - name: Culturas
+  - name: Propriedades
+  - name: Lotes
+  - name: Sensores
+  - name: Leituras
+  - name: Alertas
+  - name: Dashboard
+  - name: Logística
+  - name: Mercado
+  - name: Cotações de mercado
+  - name: Recomendações
+  - name: Produtividade
+security:
+  - bearerAuth: []
+paths:
+  /auth/login:
+    post:
+      summary: Realizar login
+      operationId: postAuthLogin
+      tags:
+        - Autenticação
+      description: Público, sem JWT. Até 10 falhas por IP a cada 15 minutos; sucessos não contam. Conta inativa
+        retorna 401.
+      security: []
+      x-perfis-autorizados: []
+      parameters: []
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResposta"
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "413":
+          description: Corpo JSON excede 100kb.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "415":
+          description: Codificação do corpo não suportada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "429":
+          description: Limite de consultas atingido.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginEntrada"
+  /auth/me:
+    get:
+      summary: Consultar usuário autenticado
+      operationId: getAuthMe
+      tags:
+        - Autenticação
+      description: "Perfis: ADMIN, TECNICO, PRODUTOR. Escopo aplicado no backend."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+        - TECNICO
+        - PRODUTOR
+      parameters: []
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  usuario:
+                    $ref: "#/components/schemas/Usuario"
+                required:
+                  - usuario
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+  /auth/logout:
+    post:
+      summary: Encerrar sessão no cliente
+      operationId: postAuthLogout
+      tags:
+        - Autenticação
+      description: "Perfis: ADMIN, TECNICO, PRODUTOR. Escopo aplicado no backend. O JWT continua válido até expirar;
+        o cliente deve descartá-lo. Resposta 204 sem corpo."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+        - TECNICO
+        - PRODUTOR
+      parameters: []
+      responses:
+        "204":
+          description: Sem corpo.
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+  /health:
+    get:
+      summary: Verificar disponibilidade
+      operationId: getHealth
+      tags:
+        - Sistema
+      description: Público, sem JWT.
+      security: []
+      x-perfis-autorizados: []
+      parameters: []
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Saude"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+  /metricas:
+    get:
+      summary: Consultar métricas
+      operationId: getMetricas
+      tags:
+        - Sistema
+      description: "Perfis: ADMIN. Escopo aplicado no backend."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+      parameters: []
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Metricas"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "403":
+          description: Perfil sem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+  /auditoria:
+    get:
+      summary: Consultar auditoria
+      operationId: getAuditoria
+      tags:
+        - Sistema
+      description: "Perfis: ADMIN. Escopo aplicado no backend."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+      parameters:
+        - in: query
+          name: pagina
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000000
+            default: 1
+          required: false
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Auditoria"
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "403":
+          description: Perfil sem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+  /culturas:
+    get:
+      summary: Listar culturas
+      operationId: getCulturas
+      tags:
+        - Culturas
+      description: Público, sem JWT.
+      security: []
+      x-perfis-autorizados: []
+      parameters: []
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Cultura"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+    post:
+      summary: Cadastrar cultura
+      operationId: postCulturas
+      tags:
+        - Culturas
+      description: "Perfis: ADMIN. Escopo aplicado no backend."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+      parameters: []
+      responses:
+        "201":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cultura"
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "403":
+          description: Perfil sem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "413":
+          description: Corpo JSON excede 100kb.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "415":
+          description: Codificação do corpo não suportada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CulturaEntrada"
+  /culturas/{id}:
+    get:
+      summary: Consultar cultura
+      operationId: getCulturasId
+      tags:
+        - Culturas
+      description: Público, sem JWT.
+      security: []
+      x-perfis-autorizados: []
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cultura"
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "404":
+          description: Recurso inexistente, inativo ou fora do escopo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+    put:
+      summary: Atualizar cultura
+      operationId: putCulturasId
+      tags:
+        - Culturas
+      description: "Perfis: ADMIN. Escopo aplicado no backend."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cultura"
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "403":
+          description: Perfil sem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "404":
+          description: Recurso inexistente, inativo ou fora do escopo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "413":
+          description: Corpo JSON excede 100kb.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "415":
+          description: Codificação do corpo não suportada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CulturaEntrada"
+    delete:
+      summary: Remover cultura
+      operationId: deleteCulturasId
+      tags:
+        - Culturas
+      description: "Perfis: ADMIN. Escopo aplicado no backend."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "204":
+          description: Sem corpo.
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "403":
+          description: Perfil sem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "404":
+          description: Recurso inexistente, inativo ou fora do escopo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "409":
+          description: Conflito de vínculo, duplicidade ou proteção da operação.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+  /culturas/{id}/detalhes:
+    get:
+      summary: Consultar detalhes da cultura
+      operationId: getCulturasIdDetalhes
+      tags:
+        - Culturas
+      description: Público, sem JWT.
+      security: []
+      x-perfis-autorizados: []
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - in: query
+          name: lat
+          schema:
+            type: number
+            minimum: -90
+            maximum: 90
+          required: true
+        - in: query
+          name: lon
+          schema:
+            type: number
+            minimum: -180
+            maximum: 180
+          required: true
+        - in: query
+          name: uf
+          schema:
+            type: string
+            enum:
+              - AC
+              - AL
+              - AP
+              - AM
+              - BA
+              - CE
+              - DF
+              - ES
+              - GO
+              - MA
+              - MT
+              - MS
+              - MG
+              - PA
+              - PB
+              - PR
+              - PE
+              - PI
+              - RJ
+              - RN
+              - RS
+              - RO
+              - RR
+              - SC
+              - SP
+              - SE
+              - TO
+            default: PE
+          required: false
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CulturaDetalhes"
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "404":
+          description: Recurso inexistente, inativo ou fora do escopo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+  /propriedades:
+    get:
+      summary: Listar propriedades
+      operationId: getPropriedades
+      tags:
+        - Propriedades
+      description: "Perfis: ADMIN, TECNICO, PRODUTOR. Escopo aplicado no backend."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+        - TECNICO
+        - PRODUTOR
+      parameters: []
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PropriedadeResumo"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+    post:
+      summary: Cadastrar propriedade
+      operationId: postPropriedades
+      tags:
+        - Propriedades
+      description: "Perfis: ADMIN, PRODUTOR. Escopo aplicado no backend."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+        - PRODUTOR
+      parameters: []
+      responses:
+        "201":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Propriedade"
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "403":
+          description: Perfil sem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "413":
+          description: Corpo JSON excede 100kb.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "415":
+          description: Codificação do corpo não suportada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PropriedadeEntrada"
+  /propriedades/{id}:
+    get:
+      summary: Consultar propriedade
+      operationId: getPropriedadesId
+      tags:
+        - Propriedades
+      description: "Perfis: ADMIN, TECNICO, PRODUTOR. Escopo aplicado no backend."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+        - TECNICO
+        - PRODUTOR
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Propriedade"
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "404":
+          description: Recurso inexistente, inativo ou fora do escopo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+    put:
+      summary: Atualizar propriedade
+      operationId: putPropriedadesId
+      tags:
+        - Propriedades
+      description: "Perfis: ADMIN, PRODUTOR. Escopo aplicado no backend."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+        - PRODUTOR
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Propriedade"
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "403":
+          description: Perfil sem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "404":
+          description: Recurso inexistente, inativo ou fora do escopo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "413":
+          description: Corpo JSON excede 100kb.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "415":
+          description: Codificação do corpo não suportada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PropriedadeEntrada"
+    delete:
+      summary: Remover propriedade
+      operationId: deletePropriedadesId
+      tags:
+        - Propriedades
+      description: "Perfis: ADMIN, PRODUTOR. Escopo aplicado no backend."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+        - PRODUTOR
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "204":
+          description: Sem corpo.
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "403":
+          description: Perfil sem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "404":
+          description: Recurso inexistente, inativo ou fora do escopo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "409":
+          description: Conflito de vínculo, duplicidade ou proteção da operação.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+  /propriedades/{id}/clima:
+    get:
+      summary: Consultar clima da propriedade
+      operationId: getPropriedadesIdClima
+      tags:
+        - Propriedades
+      description: "Perfis: ADMIN, TECNICO, PRODUTOR. Escopo aplicado no backend."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+        - TECNICO
+        - PRODUTOR
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClimaPropriedade"
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "404":
+          description: Recurso inexistente, inativo ou fora do escopo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "502":
+          description: Falha, recusa ou resposta inválida de serviço externo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+  /sensores:
+    get:
+      summary: Listar sensores
+      operationId: getSensores
+      tags:
+        - Sensores
+      description: "Perfis: ADMIN, TECNICO, PRODUTOR. Escopo aplicado no backend."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+        - TECNICO
+        - PRODUTOR
+      parameters: []
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Sensor"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+    post:
+      summary: Cadastrar sensor
+      operationId: postSensores
+      tags:
+        - Sensores
+      description: "Perfis: ADMIN, PRODUTOR. Escopo aplicado no backend."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+        - PRODUTOR
+      parameters: []
+      responses:
+        "201":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sensor"
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "403":
+          description: Perfil sem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "404":
+          description: Recurso inexistente, inativo ou fora do escopo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "409":
+          description: Conflito de vínculo, duplicidade ou proteção da operação.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "413":
+          description: Corpo JSON excede 100kb.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "415":
+          description: Codificação do corpo não suportada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SensorEntrada"
+  /sensores/config:
+    post:
+      summary: Configurar integração ThingSpeak
+      operationId: postSensoresConfig
+      tags:
+        - Sensores
+      description: "Perfis: ADMIN, TECNICO. Escopo aplicado no backend. Até 10 consultas por usuário a cada 15
+        minutos. O teste externo ocorre antes da gravação. Falha não altera a configuração do sensor. Read API
+        Key não é retornada."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+        - TECNICO
+      parameters: []
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ThingSpeakResposta"
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "403":
+          description: Perfil sem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "404":
+          description: Recurso inexistente, inativo ou fora do escopo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "413":
+          description: Corpo JSON excede 100kb.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "415":
+          description: Codificação do corpo não suportada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "422":
+          description: Entrada válida sintaticamente, mas condição de negócio ou integração impede processar.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "429":
+          description: Limite de consultas atingido.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "502":
+          description: Falha, recusa ou resposta inválida de serviço externo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "504":
+          description: Tempo limite excedido ao consultar serviço externo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ThingSpeakEntrada"
+  /sensores/{id}:
+    get:
+      summary: Consultar sensor
+      operationId: getSensoresId
+      tags:
+        - Sensores
+      description: "Perfis: ADMIN, TECNICO, PRODUTOR. Escopo aplicado no backend."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+        - TECNICO
+        - PRODUTOR
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sensor"
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "404":
+          description: Recurso inexistente, inativo ou fora do escopo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+    put:
+      summary: Atualizar sensor
+      operationId: putSensoresId
+      tags:
+        - Sensores
+      description: "Perfis: ADMIN, PRODUTOR. Escopo aplicado no backend."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+        - PRODUTOR
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sensor"
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "403":
+          description: Perfil sem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "404":
+          description: Recurso inexistente, inativo ou fora do escopo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "409":
+          description: Conflito de vínculo, duplicidade ou proteção da operação.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "413":
+          description: Corpo JSON excede 100kb.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "415":
+          description: Codificação do corpo não suportada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SensorEntrada"
+    delete:
+      summary: Remover sensor
+      operationId: deleteSensoresId
+      tags:
+        - Sensores
+      description: "Perfis: ADMIN, PRODUTOR. Escopo aplicado no backend."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+        - PRODUTOR
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "204":
+          description: Sem corpo.
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "403":
+          description: Perfil sem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "404":
+          description: Recurso inexistente, inativo ou fora do escopo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+  /sensores/{id}/leituras:
+    get:
+      summary: Consultar leituras do sensor
+      operationId: getSensoresIdLeituras
+      tags:
+        - Sensores
+      description: "Perfis: ADMIN, TECNICO, PRODUTOR. Escopo aplicado no backend. Aceita período relativo e
+        paginação. Padrão: 24h. Não combine com de/ate."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+        - TECNICO
+        - PRODUTOR
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - in: query
+          name: periodo
+          schema:
+            type: string
+            enum:
+              - 24h
+              - 7d
+              - 30d
+            default: 24h
+          required: false
+        - in: query
+          name: pagina
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+            default: 1
+          required: false
+        - in: query
+          name: limite
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          required: false
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SensorLeiturasResposta"
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "404":
+          description: Recurso inexistente, inativo ou fora do escopo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+  /sensores/{id}/indicadores:
+    get:
+      summary: Consultar indicadores climáticos
+      operationId: getSensoresIdIndicadores
+      tags:
+        - Sensores
+      description: "Perfis: ADMIN, TECNICO, PRODUTOR. Escopo aplicado no backend. Sem de/ate ou periodo, usa 24h. O
+        cálculo não é paginado. Não combine periodo com de/ate. Datas sem hora representam dias UTC, com
+        limites inclusivos."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+        - TECNICO
+        - PRODUTOR
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - in: query
+          name: periodo
+          schema:
+            type: string
+            enum:
+              - 24h
+              - 7d
+              - 30d
+          required: false
+        - in: query
+          name: de
+          schema:
+            type: string
+          required: false
+        - in: query
+          name: ate
+          schema:
+            type: string
+          required: false
+        - in: query
+          name: temperaturaBase
+          schema:
+            type: number
+            minimum: -10
+            maximum: 60
+          required: false
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IndicadoresSensor"
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "404":
+          description: Recurso inexistente, inativo ou fora do escopo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+  /lotes:
+    get:
+      summary: Listar lotes
+      operationId: getLotes
+      tags:
+        - Lotes
+      description: "Perfis: ADMIN, TECNICO, PRODUTOR. Escopo aplicado no backend."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+        - TECNICO
+        - PRODUTOR
+      parameters:
+        - in: query
+          name: propriedadeId
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+          required: false
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Lote"
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+    post:
+      summary: Cadastrar lote
+      operationId: postLotes
+      tags:
+        - Lotes
+      description: "Perfis: ADMIN, PRODUTOR. Escopo aplicado no backend."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+        - PRODUTOR
+      parameters: []
+      responses:
+        "201":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Lote"
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "403":
+          description: Perfil sem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "404":
+          description: Recurso inexistente, inativo ou fora do escopo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "413":
+          description: Corpo JSON excede 100kb.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "415":
+          description: Codificação do corpo não suportada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoteCriar"
+  /lotes/{id}:
+    get:
+      summary: Consultar lote
+      operationId: getLotesId
+      tags:
+        - Lotes
+      description: "Perfis: ADMIN, TECNICO, PRODUTOR. Escopo aplicado no backend."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+        - TECNICO
+        - PRODUTOR
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Lote"
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "404":
+          description: Recurso inexistente, inativo ou fora do escopo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+    put:
+      summary: Atualizar lote
+      operationId: putLotesId
+      tags:
+        - Lotes
+      description: "Perfis: ADMIN, PRODUTOR. Escopo aplicado no backend."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+        - PRODUTOR
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Lote"
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "403":
+          description: Perfil sem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "404":
+          description: Recurso inexistente, inativo ou fora do escopo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "413":
+          description: Corpo JSON excede 100kb.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "415":
+          description: Codificação do corpo não suportada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoteAtualizar"
+    delete:
+      summary: Remover lote
+      operationId: deleteLotesId
+      tags:
+        - Lotes
+      description: "Perfis: ADMIN, PRODUTOR. Escopo aplicado no backend. confirmar=true permite inativar sensores
+        ativos em conjunto. Sem confirmação pode retornar 409."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+        - PRODUTOR
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - in: query
+          name: confirmar
+          schema:
+            type: string
+            enum:
+              - "true"
+          required: false
+      responses:
+        "204":
+          description: Sem corpo.
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "403":
+          description: Perfil sem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "404":
+          description: Recurso inexistente, inativo ou fora do escopo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "409":
+          description: Conflito de vínculo, duplicidade ou proteção da operação.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+  /lotes/{id}/recomendacoes:
+    post:
+      summary: Gerar recomendações
+      operationId: postLotesIdRecomendacoes
+      tags:
+        - Lotes
+      description: "Perfis: ADMIN, TECNICO. Escopo aplicado no backend."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+        - TECNICO
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecomendacaoResposta"
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "403":
+          description: Perfil sem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "404":
+          description: Recurso inexistente, inativo ou fora do escopo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "413":
+          description: Corpo JSON excede 100kb.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "415":
+          description: Codificação do corpo não suportada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecomendacaoEntrada"
+  /lotes/{id}/janelas:
+    post:
+      summary: Consultar janelas recomendadas
+      operationId: postLotesIdJanelas
+      tags:
+        - Recomendações
+      description: "Perfis: ADMIN, TECNICO, PRODUTOR. Escopo aplicado no backend. Até 20 consultas por
+        usuário/minuto. A requisição usa o contrato do Node, não o contrato interno em inglês do Python.
+        Atualize datas e IDs dos exemplos antes de executar."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+        - TECNICO
+        - PRODUTOR
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JanelasResposta"
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "404":
+          description: Recurso inexistente, inativo ou fora do escopo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "413":
+          description: Corpo JSON excede 100kb.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "415":
+          description: Codificação do corpo não suportada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "422":
+          description: Entrada válida sintaticamente, mas condição de negócio ou integração impede processar.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "429":
+          description: Limite de consultas atingido.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "503":
+          description: Serviço externo indisponível ou não configurado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JanelasEntrada"
+            examples:
+              colheita:
+                summary: Só colheita — parâmetros de teste
+                value:
+                  sensorId: 40
+                  dataHoraReferencia: 2026-11-25T00:00:00Z
+                  grausDiaReferencia: 0
+                  temperaturaBase: 10
+                  grausDiaAlvo: 1500
+                  chuvaMaxMm: 5
+                  umidadeArMaxPercentual: 80
+                  fonteParametros: Parâmetros sintéticos de teste, sem validação agronômica
+                  versaoParametros: teste-v1
+              exportacaoManual:
+                summary: Exportação com preços informados
+                value:
+                  sensorId: 40
+                  dataHoraReferencia: 2026-11-25T00:00:00Z
+                  grausDiaReferencia: 0
+                  temperaturaBase: 10
+                  grausDiaAlvo: 1500
+                  chuvaMaxMm: 5
+                  umidadeArMaxPercentual: 80
+                  fonteParametros: Parâmetros sintéticos de teste, sem validação agronômica
+                  versaoParametros: teste-v1
+                  rotaLogisticaId: 1
+                  horasAteResfriamento: 2
+                  vidaUtilHoras: 72
+                  custoInternoKg: 2
+                  custoExportacaoKg: 3
+                  cadeiaFrioGarantida: true
+                  precoInternoKg: 5
+                  precoExportacaoKg: 8
+                  moeda: BRL
+                  dataHoraCotacao: 2026-11-25T12:00:00Z
+                  fonteCotacao: Cotação sintética de teste
+              exportacaoIds:
+                summary: Exportação por cotações cadastradas
+                value:
+                  sensorId: 40
+                  dataHoraReferencia: 2026-11-25T00:00:00Z
+                  grausDiaReferencia: 0
+                  temperaturaBase: 10
+                  grausDiaAlvo: 1500
+                  chuvaMaxMm: 5
+                  umidadeArMaxPercentual: 80
+                  fonteParametros: Parâmetros sintéticos de teste, sem validação agronômica
+                  versaoParametros: teste-v1
+                  rotaLogisticaId: 1
+                  horasAteResfriamento: 2
+                  vidaUtilHoras: 72
+                  custoInternoKg: 2
+                  custoExportacaoKg: 3
+                  cadeiaFrioGarantida: true
+                  cotacaoInternaId: 1
+                  cotacaoExportacaoId: 2
+  /lotes/{id}/previsao:
+    post:
+      summary: Consultar previsão por modelo Python
+      operationId: postLotesIdPrevisao
+      tags:
+        - Recomendações
+      description: "Perfis: ADMIN, TECNICO, PRODUTOR. Escopo aplicado no backend. Até 20 consultas por
+        usuário/minuto. A requisição usa o contrato do Node, não o contrato interno em inglês do Python.
+        Atualize datas e IDs dos exemplos antes de executar."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+        - TECNICO
+        - PRODUTOR
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrevisaoPythonResposta"
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "404":
+          description: Recurso inexistente, inativo ou fora do escopo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "413":
+          description: Corpo JSON excede 100kb.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "415":
+          description: Codificação do corpo não suportada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "422":
+          description: Entrada válida sintaticamente, mas condição de negócio ou integração impede processar.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "429":
+          description: Limite de consultas atingido.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "502":
+          description: Falha, recusa ou resposta inválida de serviço externo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "503":
+          description: Serviço externo indisponível ou não configurado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "504":
+          description: Tempo limite excedido ao consultar serviço externo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JanelasEntrada"
+            examples:
+              colheita:
+                summary: Só colheita — parâmetros de teste
+                value:
+                  sensorId: 40
+                  dataHoraReferencia: 2026-11-25T00:00:00Z
+                  grausDiaReferencia: 0
+                  temperaturaBase: 10
+                  grausDiaAlvo: 1500
+                  chuvaMaxMm: 5
+                  umidadeArMaxPercentual: 80
+                  fonteParametros: Parâmetros sintéticos de teste, sem validação agronômica
+                  versaoParametros: teste-v1
+              exportacaoManual:
+                summary: Exportação com preços informados
+                value:
+                  sensorId: 40
+                  dataHoraReferencia: 2026-11-25T00:00:00Z
+                  grausDiaReferencia: 0
+                  temperaturaBase: 10
+                  grausDiaAlvo: 1500
+                  chuvaMaxMm: 5
+                  umidadeArMaxPercentual: 80
+                  fonteParametros: Parâmetros sintéticos de teste, sem validação agronômica
+                  versaoParametros: teste-v1
+                  rotaLogisticaId: 1
+                  horasAteResfriamento: 2
+                  vidaUtilHoras: 72
+                  custoInternoKg: 2
+                  custoExportacaoKg: 3
+                  cadeiaFrioGarantida: true
+                  precoInternoKg: 5
+                  precoExportacaoKg: 8
+                  moeda: BRL
+                  dataHoraCotacao: 2026-11-25T12:00:00Z
+                  fonteCotacao: Cotação sintética de teste
+              exportacaoIds:
+                summary: Exportação por cotações cadastradas
+                value:
+                  sensorId: 40
+                  dataHoraReferencia: 2026-11-25T00:00:00Z
+                  grausDiaReferencia: 0
+                  temperaturaBase: 10
+                  grausDiaAlvo: 1500
+                  chuvaMaxMm: 5
+                  umidadeArMaxPercentual: 80
+                  fonteParametros: Parâmetros sintéticos de teste, sem validação agronômica
+                  versaoParametros: teste-v1
+                  rotaLogisticaId: 1
+                  horasAteResfriamento: 2
+                  vidaUtilHoras: 72
+                  custoInternoKg: 2
+                  custoExportacaoKg: 3
+                  cadeiaFrioGarantida: true
+                  cotacaoInternaId: 1
+                  cotacaoExportacaoId: 2
+  /leituras:
+    get:
+      summary: Listar leituras
+      operationId: getLeituras
+      tags:
+        - Leituras
+      description: "Perfis: ADMIN, TECNICO, PRODUTOR. Escopo aplicado no backend. Não combine periodo com de/ate.
+        Datas sem hora representam dias UTC, com limites inclusivos."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+        - TECNICO
+        - PRODUTOR
+      parameters:
+        - in: query
+          name: sensorId
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+          required: false
+        - in: query
+          name: loteId
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+          required: false
+        - in: query
+          name: propriedadeId
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+          required: false
+        - in: query
+          name: periodo
+          schema:
+            type: string
+            enum:
+              - 24h
+              - 7d
+              - 30d
+          required: false
+        - in: query
+          name: de
+          schema:
+            type: string
+          required: false
+        - in: query
+          name: ate
+          schema:
+            type: string
+          required: false
+        - in: query
+          name: pagina
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+            default: 1
+          required: false
+        - in: query
+          name: limite
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          required: false
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeiturasResposta"
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "404":
+          description: Recurso inexistente, inativo ou fora do escopo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+  /alertas:
+    get:
+      summary: Listar alertas calculados
+      operationId: getAlertas
+      tags:
+        - Alertas
+      description: "Perfis: ADMIN, TECNICO, PRODUTOR. Escopo aplicado no backend."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+        - TECNICO
+        - PRODUTOR
+      parameters:
+        - in: query
+          name: propriedadeId
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+          required: false
+        - in: query
+          name: loteId
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+          required: false
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertasResposta"
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+  /alertas/riscos:
+    get:
+      summary: Consultar histórico de alertas de risco
+      operationId: getAlertasRiscos
+      tags:
+        - Alertas
+      description: "Perfis: ADMIN, TECNICO, PRODUTOR. Escopo aplicado no backend. Não combine periodo com de/ate.
+        Datas sem hora representam dias UTC, com limites inclusivos."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+        - TECNICO
+        - PRODUTOR
+      parameters:
+        - in: query
+          name: sensorId
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+          required: false
+        - in: query
+          name: loteId
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+          required: false
+        - in: query
+          name: propriedadeId
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+          required: false
+        - in: query
+          name: periodo
+          schema:
+            type: string
+            enum:
+              - 24h
+              - 7d
+              - 30d
+          required: false
+        - in: query
+          name: de
+          schema:
+            type: string
+          required: false
+        - in: query
+          name: ate
+          schema:
+            type: string
+          required: false
+        - in: query
+          name: pagina
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+            default: 1
+          required: false
+        - in: query
+          name: limite
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          required: false
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AlertaRisco"
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+  /logistica:
+    get:
+      summary: Listar opções logísticas
+      operationId: getLogistica
+      tags:
+        - Logística
+      description: "Perfis: ADMIN, TECNICO, PRODUTOR. Escopo aplicado no backend."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+        - TECNICO
+        - PRODUTOR
+      parameters:
+        - in: query
+          name: propriedadeId
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+          required: false
+        - in: query
+          name: pagina
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+            default: 1
+          required: false
+        - in: query
+          name: limite
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          required: false
+        - in: query
+          name: modal
+          schema:
+            type: string
+            enum:
+              - RODOVIARIO
+              - FERROVIARIO
+              - AEREO
+              - MARITIMO
+          required: false
+        - in: query
+          name: situacao
+          schema:
+            type: string
+            enum:
+              - PLANEJADA
+              - EM_TRANSITO
+              - ENTREGUE
+              - CANCELADA
+          required: false
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogisticaLista"
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+    post:
+      summary: Cadastrar opção logística
+      operationId: postLogistica
+      tags:
+        - Logística
+      description: "Perfis: ADMIN, PRODUTOR. Escopo aplicado no backend."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+        - PRODUTOR
+      parameters: []
+      responses:
+        "201":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Logistica"
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "403":
+          description: Perfil sem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "404":
+          description: Recurso inexistente, inativo ou fora do escopo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "413":
+          description: Corpo JSON excede 100kb.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "415":
+          description: Codificação do corpo não suportada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LogisticaCriar"
+  /logistica/comparar:
+    get:
+      summary: Comparar logística
+      operationId: getLogisticaComparar
+      tags:
+        - Logística
+      description: "Perfis: ADMIN, TECNICO, PRODUTOR. Escopo aplicado no backend. Informe de 2 a 10 IDs distintos,
+        sem espaços, dentro do seu escopo. Destinos e modais diferentes não são cotações equivalentes."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+        - TECNICO
+        - PRODUTOR
+      parameters:
+        - in: query
+          name: propriedadeIds
+          schema:
+            type: string
+            pattern: ^\d+(,\d+){1,9}$
+            example: 1,2
+          required: true
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComparacaoLogistica"
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "404":
+          description: Recurso inexistente, inativo ou fora do escopo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+  /logistica/{id}:
+    get:
+      summary: Consultar opção logística
+      operationId: getLogisticaId
+      tags:
+        - Logística
+      description: "Perfis: ADMIN, TECNICO, PRODUTOR. Escopo aplicado no backend."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+        - TECNICO
+        - PRODUTOR
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Logistica"
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "404":
+          description: Recurso inexistente, inativo ou fora do escopo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+    put:
+      summary: Atualizar opção logística
+      operationId: putLogisticaId
+      tags:
+        - Logística
+      description: "Perfis: ADMIN, PRODUTOR. Escopo aplicado no backend."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+        - PRODUTOR
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Logistica"
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "403":
+          description: Perfil sem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "404":
+          description: Recurso inexistente, inativo ou fora do escopo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "413":
+          description: Corpo JSON excede 100kb.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "415":
+          description: Codificação do corpo não suportada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LogisticaAtualizar"
+    delete:
+      summary: Remover opção logística
+      operationId: deleteLogisticaId
+      tags:
+        - Logística
+      description: "Perfis: ADMIN, PRODUTOR. Escopo aplicado no backend."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+        - PRODUTOR
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "204":
+          description: Sem corpo.
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "403":
+          description: Perfil sem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "404":
+          description: Recurso inexistente, inativo ou fora do escopo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+  /dashboard/resumo:
+    get:
+      summary: Consultar resumo do dashboard
+      operationId: getDashboardResumo
+      tags:
+        - Dashboard
+      description: "Perfis: ADMIN, TECNICO, PRODUTOR. Escopo aplicado no backend."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+        - TECNICO
+        - PRODUTOR
+      parameters:
+        - in: query
+          name: propriedadeId
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+          required: false
+        - in: query
+          name: loteId
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+          required: false
+        - in: query
+          name: culturaId
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+          required: false
+        - in: query
+          name: sensorId
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+          required: false
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardResumo"
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "404":
+          description: Recurso inexistente, inativo ou fora do escopo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+  /dashboard/medias:
+    get:
+      summary: Consultar médias do dashboard
+      operationId: getDashboardMedias
+      tags:
+        - Dashboard
+      description: "Perfis: ADMIN, TECNICO, PRODUTOR. Escopo aplicado no backend. Datas sem hora representam dias em
+        America/Recife. hora: padrão 24h, máximo 7 dias. dia: padrão 7 dias, máximo 90 dias."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+        - TECNICO
+        - PRODUTOR
+      parameters:
+        - in: query
+          name: propriedadeId
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+          required: false
+        - in: query
+          name: loteId
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+          required: false
+        - in: query
+          name: culturaId
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+          required: false
+        - in: query
+          name: sensorId
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+          required: false
+        - in: query
+          name: agrupar
+          schema:
+            type: string
+            enum:
+              - hora
+              - dia
+            default: hora
+          required: false
+        - in: query
+          name: de
+          schema:
+            type: string
+          required: false
+        - in: query
+          name: ate
+          schema:
+            type: string
+          required: false
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardMedias"
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "404":
+          description: Recurso inexistente, inativo ou fora do escopo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+  /precos:
+    get:
+      summary: Consultar preços públicos da CONAB
+      operationId: getPrecos
+      tags:
+        - Mercado
+      description: Público, sem JWT.
+      security: []
+      x-perfis-autorizados: []
+      parameters:
+        - in: query
+          name: produto
+          schema:
+            type: string
+            enum:
+              - UVA
+              - MANGA
+              - BANANA
+              - GOIABA
+              - MELAO
+          required: true
+        - in: query
+          name: uf
+          schema:
+            type: string
+            enum:
+              - AC
+              - AL
+              - AP
+              - AM
+              - BA
+              - CE
+              - DF
+              - ES
+              - GO
+              - MA
+              - MT
+              - MS
+              - MG
+              - PA
+              - PB
+              - PR
+              - PE
+              - PI
+              - RJ
+              - RN
+              - RS
+              - RO
+              - RR
+              - SC
+              - SP
+              - SE
+              - TO
+          required: true
+        - in: query
+          name: ceasa
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 150
+          required: false
+        - in: query
+          name: limite
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+          required: false
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrecosResposta"
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "503":
+          description: Serviço externo indisponível ou não configurado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+  /mercado/cotacoes:
+    get:
+      summary: Listar cotações
+      operationId: getMercadoCotacoes
+      tags:
+        - Cotações de mercado
+      description: "Perfis: ADMIN, TECNICO, PRODUTOR. Escopo aplicado no backend."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+        - TECNICO
+        - PRODUTOR
+      parameters:
+        - in: query
+          name: pagina
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000000
+            default: 1
+          required: false
+        - in: query
+          name: limite
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          required: false
+        - in: query
+          name: culturaId
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+          required: false
+        - in: query
+          name: mercadoDestino
+          schema:
+            type: string
+            enum:
+              - INTERNO
+              - EXPORTACAO
+          required: false
+        - in: query
+          name: paisDestino
+          schema:
+            type: string
+            pattern: ^[A-Z]{2}$
+          required: false
+        - in: query
+          name: moeda
+          schema:
+            type: string
+            enum:
+              - BRL
+              - USD
+              - EUR
+              - GBP
+          required: false
+        - in: query
+          name: de
+          schema:
+            type: string
+            format: date
+          required: false
+        - in: query
+          name: ate
+          schema:
+            type: string
+            format: date
+          required: false
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CotacoesLista"
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+    post:
+      summary: Cadastrar cotação
+      operationId: postMercadoCotacoes
+      tags:
+        - Cotações de mercado
+      description: "Perfis: ADMIN. Escopo aplicado no backend."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+      parameters: []
+      responses:
+        "201":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cotacao"
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "403":
+          description: Perfil sem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "404":
+          description: Recurso inexistente, inativo ou fora do escopo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "413":
+          description: Corpo JSON excede 100kb.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "415":
+          description: Codificação do corpo não suportada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CotacaoEntrada"
+  /mercado/cotacoes/{id}:
+    get:
+      summary: Consultar cotação
+      operationId: getMercadoCotacoesId
+      tags:
+        - Cotações de mercado
+      description: "Perfis: ADMIN, TECNICO, PRODUTOR. Escopo aplicado no backend."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+        - TECNICO
+        - PRODUTOR
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cotacao"
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "404":
+          description: Recurso inexistente, inativo ou fora do escopo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+    put:
+      summary: Atualizar cotação
+      operationId: putMercadoCotacoesId
+      tags:
+        - Cotações de mercado
+      description: "Perfis: ADMIN. Escopo aplicado no backend."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cotacao"
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "403":
+          description: Perfil sem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "404":
+          description: Recurso inexistente, inativo ou fora do escopo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "413":
+          description: Corpo JSON excede 100kb.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "415":
+          description: Codificação do corpo não suportada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CotacaoEntrada"
+    delete:
+      summary: Remover cotação
+      operationId: deleteMercadoCotacoesId
+      tags:
+        - Cotações de mercado
+      description: "Perfis: ADMIN. Escopo aplicado no backend."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "204":
+          description: Sem corpo.
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "403":
+          description: Perfil sem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "404":
+          description: Recurso inexistente, inativo ou fora do escopo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+  /usuarios:
+    get:
+      summary: Listar usuários
+      operationId: getUsuarios
+      tags:
+        - Usuários
+      description: "Perfis: ADMIN. Escopo aplicado no backend."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+      parameters: []
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Usuario"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "403":
+          description: Perfil sem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+    post:
+      summary: Cadastrar usuário
+      operationId: postUsuarios
+      tags:
+        - Usuários
+      description: "Perfis: ADMIN. Escopo aplicado no backend."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+      parameters: []
+      responses:
+        "201":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Usuario"
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "403":
+          description: Perfil sem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "404":
+          description: Recurso inexistente, inativo ou fora do escopo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "409":
+          description: Conflito de vínculo, duplicidade ou proteção da operação.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "413":
+          description: Corpo JSON excede 100kb.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "415":
+          description: Codificação do corpo não suportada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UsuarioCriar"
+  /usuarios/{id}:
+    put:
+      summary: Atualizar usuário
+      operationId: putUsuariosId
+      tags:
+        - Usuários
+      description: "Perfis: ADMIN. Escopo aplicado no backend."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Usuario"
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "403":
+          description: Perfil sem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "404":
+          description: Recurso inexistente, inativo ou fora do escopo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "409":
+          description: Conflito de vínculo, duplicidade ou proteção da operação.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "413":
+          description: Corpo JSON excede 100kb.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "415":
+          description: Codificação do corpo não suportada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UsuarioAtualizar"
+    delete:
+      summary: Inativar usuário
+      operationId: deleteUsuariosId
+      tags:
+        - Usuários
+      description: "Perfis: ADMIN. Escopo aplicado no backend."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "204":
+          description: Sem corpo.
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "403":
+          description: Perfil sem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "404":
+          description: Recurso inexistente, inativo ou fora do escopo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "409":
+          description: Conflito de vínculo, duplicidade ou proteção da operação.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+  /usuarios/{id}/propriedades:
+    get:
+      summary: Listar propriedades vinculadas ao técnico
+      operationId: getUsuariosIdPropriedades
+      tags:
+        - Usuários
+      description: "Perfis: ADMIN. Escopo aplicado no backend."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                      minimum: 1
+                      maximum: 2147483647
+                    nome:
+                      type: string
+                    cidade:
+                      type: string
+                    uf:
+                      type: string
+                    status:
+                      type: string
+                      enum:
+                        - ATIVO
+                        - INATIVO
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "403":
+          description: Perfil sem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "404":
+          description: Recurso inexistente, inativo ou fora do escopo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "409":
+          description: Conflito de vínculo, duplicidade ou proteção da operação.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+    put:
+      summary: Substituir vínculos do técnico
+      operationId: putUsuariosIdPropriedades
+      tags:
+        - Usuários
+      description: "Perfis: ADMIN. Escopo aplicado no backend."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                      minimum: 1
+                      maximum: 2147483647
+                    nome:
+                      type: string
+                    cidade:
+                      type: string
+                    uf:
+                      type: string
+                    status:
+                      type: string
+                      enum:
+                        - ATIVO
+                        - INATIVO
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "403":
+          description: Perfil sem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "404":
+          description: Recurso inexistente, inativo ou fora do escopo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "409":
+          description: Conflito de vínculo, duplicidade ou proteção da operação.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "413":
+          description: Corpo JSON excede 100kb.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "415":
+          description: Codificação do corpo não suportada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VinculosEntrada"
+  /dashboard/produtor/areas:
+    get:
+      summary: Consultar áreas classificadas do produtor
+      operationId: getDashboardProdutorAreas
+      tags:
+        - Dashboard
+      description: "Perfis: PRODUTOR. Escopo aplicado no backend."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - PRODUTOR
+      parameters:
+        - in: query
+          name: propriedadeId
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+          required: false
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AreasProdutor"
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "403":
+          description: Perfil sem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+  /dashboard/produtor/alertas-do-dia:
+    get:
+      summary: Consultar episódios de risco do dia do produtor
+      operationId: getDashboardProdutorAlertasDoDia
+      tags:
+        - Dashboard
+      description: "Perfis: PRODUTOR. Escopo aplicado no backend."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - PRODUTOR
+      parameters:
+        - in: query
+          name: propriedadeId
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+          required: false
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertasDoDia"
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "403":
+          description: Perfil sem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+  /produtividade/previsoes:
+    get:
+      summary: Consultar produtividade municipal experimental
+      operationId: getProdutividadePrevisoes
+      tags:
+        - Produtividade
+      description: "Perfis: ADMIN, TECNICO, PRODUTOR. Escopo aplicado no backend. Use município com UF, como
+        Petrolina (PE). Referência municipal experimental; não é previsão individual da propriedade."
+      security:
+        - bearerAuth: []
+      x-perfis-autorizados:
+        - ADMIN
+        - TECNICO
+        - PRODUTOR
+      parameters:
+        - in: query
+          name: municipio
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 200
+            example: Petrolina (PE)
+          required: true
+        - in: query
+          name: produto
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 200
+            example: Uva
+          required: true
+        - in: query
+          name: ano
+          schema:
+            type: string
+            pattern: ^\d{4}$
+            example: "2026"
+          required: true
+      responses:
+        "200":
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProdutividadeResposta"
+        "400":
+          description: Dados ou parâmetros inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "401":
+          description: Token ausente, inválido ou expirado; conta inativa. No login, credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "404":
+          description: Recurso inexistente, inativo ou fora do escopo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "500":
+          description: Erro interno inesperado, sem stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Informe somente o JWT. O prefixo Bearer é aplicado automaticamente.
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      description: Identificador numérico do recurso.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 2147483647
+  schemas:
+    Erro:
+      type: object
+      properties:
+        erro:
+          type: string
+        campos:
+          type: object
+          additionalProperties:
+            type: string
+        totalSensores:
+          type: integer
+          minimum: 0
+          maximum: 2147483647
+      required:
+        - erro
+      description: Erros esperados não retornam stack trace ou segredos. X-Request-Id identifica a requisição.
+    Paginacao:
+      type: object
+      properties:
+        pagina:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        limite:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          minimum: 0
+          maximum: 2147483647
+        totalPaginas:
+          type: integer
+          minimum: 0
+          maximum: 2147483647
+      required:
+        - pagina
+        - limite
+        - total
+        - totalPaginas
+    Usuario:
+      type: object
+      properties:
+        id:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        nome:
+          type: string
+        email:
+          type: string
+          format: email
+        perfil:
+          type: string
+          enum:
+            - ADMIN
+            - PRODUTOR
+            - TECNICO
+        status:
+          type: string
+          enum:
+            - ATIVO
+            - INATIVO
+      required:
+        - id
+        - nome
+        - email
+        - perfil
+        - status
+    LoginEntrada:
+      type: object
+      properties:
+        email:
+          type: string
+          minLength: 1
+          maxLength: 254
+        senha:
+          type: string
+          minLength: 1
+          format: password
+          writeOnly: true
+          description: Até 72 bytes UTF-8; espaços são preservados.
+      required:
+        - email
+        - senha
+      example:
+        email: produtor@example.com
+        senha: SenhaExemplo123
+    LoginResposta:
+      type: object
+      properties:
+        token:
+          type: string
+        usuario:
+          $ref: "#/components/schemas/Usuario"
+      required:
+        - token
+        - usuario
+    UsuarioCriar:
+      type: object
+      properties:
+        nome:
+          type: string
+          minLength: 1
+          maxLength: 150
+        email:
+          type: string
+          minLength: 1
+          maxLength: 254
+          format: email
+        perfil:
+          type: string
+          enum:
+            - ADMIN
+            - PRODUTOR
+            - TECNICO
+        senha:
+          type: string
+          format: password
+          writeOnly: true
+          description: "Obrigatória no cadastro: 8 a 72 bytes UTF-8."
+      required:
+        - nome
+        - email
+        - senha
+        - perfil
+      example:
+        nome: Produtor de exemplo
+        email: produtor@example.com
+        perfil: PRODUTOR
+        senha: SenhaExemplo123
+    UsuarioAtualizar:
+      type: object
+      properties:
+        nome:
+          type: string
+          minLength: 1
+          maxLength: 150
+        email:
+          type: string
+          minLength: 1
+          maxLength: 254
+          format: email
+        perfil:
+          type: string
+          enum:
+            - ADMIN
+            - PRODUTOR
+            - TECNICO
+        status:
+          type: string
+          enum:
+            - ATIVO
+          description: Somente reativação. Use DELETE para inativar. senha é ignorada neste PUT.
+      description: PUT parcial. ADMIN não pode alterar o próprio perfil. Campos desconhecidos são ignorados.
+      example:
+        status: ATIVO
+    VinculosEntrada:
+      type: object
+      properties:
+        propriedadeIds:
+          type: array
+          items:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+      required:
+        - propriedadeIds
+      description: Substitui todos os vínculos do técnico. Lista vazia desvincula tudo. Até 100 IDs distintos;
+        duplicatas são eliminadas pelo servidor.
+      example:
+        propriedadeIds:
+          - 1
+          - 2
+    CulturaEntrada:
+      type: object
+      properties:
+        nome:
+          type: string
+          minLength: 2
+          maxLength: 100
+        variedade:
+          type: string
+          maxLength: 100
+          nullable: true
+        descricao:
+          type: string
+          maxLength: 1000
+          nullable: true
+        temperaturaMin:
+          type: number
+          minimum: -50
+          maximum: 60
+          multipleOf: 0.01
+        temperaturaMax:
+          type: number
+          minimum: -50
+          maximum: 60
+          multipleOf: 0.01
+        umidadeMin:
+          type: number
+          minimum: 0
+          maximum: 100
+          multipleOf: 0.01
+        umidadeMax:
+          type: number
+          minimum: 0
+          maximum: 100
+          multipleOf: 0.01
+      required:
+        - nome
+        - temperaturaMin
+        - temperaturaMax
+        - umidadeMin
+        - umidadeMax
+      description: POST e PUT exigem os campos obrigatórios. Mínimos não podem superar máximos. Texto opcional vazio
+        vira null.
+      example:
+        nome: Uva
+        variedade: Vitória
+        temperaturaMin: 20
+        temperaturaMax: 30
+        umidadeMin: 40
+        umidadeMax: 70
+    Cultura:
+      type: object
+      properties:
+        id:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        nome:
+          type: string
+          minLength: 2
+          maxLength: 100
+        variedade:
+          type: string
+          maxLength: 100
+          nullable: true
+        descricao:
+          type: string
+          maxLength: 1000
+          nullable: true
+        temperaturaMin:
+          type: number
+          minimum: -50
+          maximum: 60
+          multipleOf: 0.01
+        temperaturaMax:
+          type: number
+          minimum: -50
+          maximum: 60
+          multipleOf: 0.01
+        umidadeMin:
+          type: number
+          minimum: 0
+          maximum: 100
+          multipleOf: 0.01
+        umidadeMax:
+          type: number
+          minimum: 0
+          maximum: 100
+          multipleOf: 0.01
+      required:
+        - id
+        - nome
+        - temperaturaMin
+        - temperaturaMax
+        - umidadeMin
+        - umidadeMax
+    CulturaResumo:
+      type: object
+      properties:
+        id:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        nome:
+          type: string
+        variedade:
+          type: string
+          nullable: true
+      required:
+        - id
+        - nome
+    PropriedadeEntrada:
+      type: object
+      properties:
+        nome:
+          type: string
+          minLength: 3
+          maxLength: 255
+        area:
+          type: number
+          minimum: 0.01
+          maximum: 99999999.99
+          multipleOf: 0.01
+        uf:
+          type: string
+          enum:
+            - AC
+            - AL
+            - AP
+            - AM
+            - BA
+            - CE
+            - DF
+            - ES
+            - GO
+            - MA
+            - MT
+            - MS
+            - MG
+            - PA
+            - PB
+            - PR
+            - PE
+            - PI
+            - RJ
+            - RN
+            - RS
+            - RO
+            - RR
+            - SC
+            - SP
+            - SE
+            - TO
+        cidade:
+          type: string
+          minLength: 2
+          maxLength: 100
+        latitude:
+          type: number
+          minimum: -90
+          maximum: 90
+          nullable: true
+        longitude:
+          type: number
+          minimum: -180
+          maximum: 180
+          nullable: true
+      required:
+        - nome
+        - area
+        - uf
+        - cidade
+      description: POST e PUT exigem nome, área, UF e cidade. No cadastro, cada coordenada ausente recebe estimativa
+        da UF. O dono vem do JWT; usuarioId e status do corpo são ignorados. No PUT, coordenadas omitidas
+        mantêm o valor.
+      example:
+        nome: Propriedade de exemplo
+        area: 5
+        cidade: Petrolina
+        uf: PE
+        latitude: -9.39
+        longitude: -40.5
+    PropriedadeResumo:
+      type: object
+      properties:
+        id:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        nome:
+          type: string
+        cidade:
+          type: string
+        uf:
+          type: string
+        coordenadasEstimadasUf:
+          type: boolean
+          nullable: true
+        totalLotes:
+          type: integer
+          minimum: 0
+          maximum: 2147483647
+        totalSensores:
+          type: integer
+          minimum: 0
+          maximum: 2147483647
+      required:
+        - id
+        - nome
+        - cidade
+        - uf
+        - totalLotes
+        - totalSensores
+      description: "coordenadasEstimadasUf: true se alguma estimada; false se ambas informadas; null se a origem é
+        desconhecida."
+    Propriedade:
+      type: object
+      properties:
+        id:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        nome:
+          type: string
+          minLength: 3
+          maxLength: 255
+        area:
+          type: number
+          minimum: 0.01
+          maximum: 99999999.99
+          multipleOf: 0.01
+        uf:
+          type: string
+          enum:
+            - AC
+            - AL
+            - AP
+            - AM
+            - BA
+            - CE
+            - DF
+            - ES
+            - GO
+            - MA
+            - MT
+            - MS
+            - MG
+            - PA
+            - PB
+            - PR
+            - PE
+            - PI
+            - RJ
+            - RN
+            - RS
+            - RO
+            - RR
+            - SC
+            - SP
+            - SE
+            - TO
+        cidade:
+          type: string
+          minLength: 2
+          maxLength: 100
+        latitude:
+          type: number
+          minimum: -90
+          maximum: 90
+          nullable: true
+        longitude:
+          type: number
+          minimum: -180
+          maximum: 180
+          nullable: true
+        status:
+          type: string
+          enum:
+            - ATIVO
+            - INATIVO
+        usuarioId:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        criadoEm:
+          type: string
+          format: date-time
+        atualizadoEm:
+          type: string
+          format: date-time
+        coordenadasEstimadasUf:
+          type: boolean
+          nullable: true
+        totalLotes:
+          type: integer
+          minimum: 0
+          maximum: 2147483647
+        totalSensores:
+          type: integer
+          minimum: 0
+          maximum: 2147483647
+      required:
+        - id
+        - nome
+        - area
+        - cidade
+        - uf
+    LoteCriar:
+      type: object
+      properties:
+        identificacao:
+          type: string
+          minLength: 1
+          maxLength: 100
+        area:
+          type: number
+          minimum: 0.01
+          maximum: 99999999.99
+          multipleOf: 0.01
+        dataPlantacao:
+          type: string
+          format: date
+        colheitaEstimada:
+          type: string
+          format: date
+          nullable: true
+        situacao:
+          type: string
+          minLength: 1
+          maxLength: 30
+        culturaId:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        latitude:
+          type: number
+          minimum: -90
+          maximum: 90
+          nullable: true
+        longitude:
+          type: number
+          minimum: -180
+          maximum: 180
+          nullable: true
+        faseFenologica:
+          type: string
+          enum:
+            - VEGETATIVA
+            - FLORACAO_PANICULA
+            - FRUTIFICACAO
+            - MATURACAO
+            - null
+          nullable: true
+        propriedadeId:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+      required:
+        - identificacao
+        - area
+        - dataPlantacao
+        - situacao
+        - culturaId
+        - propriedadeId
+      description: "Coordenadas: enviar ambas numéricas com até 8 casas, ambas null ou omitir ambas. Colheita não
+        pode anteceder plantação. situacao é texto livre."
+      example:
+        identificacao: Lote de exemplo
+        area: 2
+        dataPlantacao: 2026-09-01
+        situacao: PLANTADO
+        culturaId: 3
+        propriedadeId: 19
+        faseFenologica: VEGETATIVA
+    LoteAtualizar:
+      type: object
+      properties:
+        identificacao:
+          type: string
+          minLength: 1
+          maxLength: 100
+        area:
+          type: number
+          minimum: 0.01
+          maximum: 99999999.99
+          multipleOf: 0.01
+        dataPlantacao:
+          type: string
+          format: date
+        colheitaEstimada:
+          type: string
+          format: date
+          nullable: true
+        situacao:
+          type: string
+          minLength: 1
+          maxLength: 30
+        culturaId:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        latitude:
+          type: number
+          minimum: -90
+          maximum: 90
+          nullable: true
+        longitude:
+          type: number
+          minimum: -180
+          maximum: 180
+          nullable: true
+        faseFenologica:
+          type: string
+          enum:
+            - VEGETATIVA
+            - FLORACAO_PANICULA
+            - FRUTIFICACAO
+            - MATURACAO
+            - null
+          nullable: true
+      description: "PUT parcial. propriedadeId e status são ignorados. Coordenadas: ambas numéricas, ambas null ou
+        ambas omitidas. Colheita não antecede plantação."
+      example:
+        faseFenologica: MATURACAO
+    Lote:
+      type: object
+      properties:
+        id:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        identificacao:
+          type: string
+          minLength: 1
+          maxLength: 100
+        area:
+          type: number
+          minimum: 0.01
+          maximum: 99999999.99
+          multipleOf: 0.01
+        dataPlantacao:
+          type: string
+          format: date
+        colheitaEstimada:
+          type: string
+          format: date
+          nullable: true
+        situacao:
+          type: string
+          minLength: 1
+          maxLength: 30
+        culturaId:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        latitude:
+          type: number
+          minimum: -90
+          maximum: 90
+          nullable: true
+        longitude:
+          type: number
+          minimum: -180
+          maximum: 180
+          nullable: true
+        faseFenologica:
+          type: string
+          enum:
+            - VEGETATIVA
+            - FLORACAO_PANICULA
+            - FRUTIFICACAO
+            - MATURACAO
+            - null
+          nullable: true
+        propriedadeId:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        status:
+          type: string
+          enum:
+            - ATIVO
+            - INATIVO
+        cultura:
+          $ref: "#/components/schemas/CulturaResumo"
+        totalSensores:
+          type: integer
+          minimum: 0
+          maximum: 2147483647
+      required:
+        - id
+        - identificacao
+        - propriedadeId
+        - culturaId
+        - area
+        - dataPlantacao
+        - status
+        - totalSensores
+    SensorEntrada:
+      type: object
+      properties:
+        codigo:
+          type: string
+          minLength: 1
+          maxLength: 45
+        tipo:
+          type: string
+          minLength: 1
+          maxLength: 45
+        localizacao:
+          type: string
+          maxLength: 150
+          nullable: true
+        dataInstalacao:
+          type: string
+          format: date
+          description: Data real e não futura.
+        loteId:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+      required:
+        - codigo
+        - tipo
+        - dataInstalacao
+        - loteId
+      description: POST e PUT exigem os campos obrigatórios. channelId, readApiKey e status são ignorados no CRUD.
+        Configure a integração em POST /sensores/config.
+      example:
+        codigo: SENSOR-EXEMPLO
+        tipo: TEMPERATURA_UMIDADE
+        dataInstalacao: 2026-09-01
+        loteId: 19
+    Sensor:
+      type: object
+      properties:
+        id:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        codigo:
+          type: string
+          minLength: 1
+          maxLength: 45
+        tipo:
+          type: string
+          minLength: 1
+          maxLength: 45
+        localizacao:
+          type: string
+          maxLength: 150
+          nullable: true
+        dataInstalacao:
+          type: string
+          format: date-time
+        loteId:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        status:
+          type: string
+          enum:
+            - ATIVO
+            - INATIVO
+        channelId:
+          type: string
+          nullable: true
+        lote:
+          type: object
+          properties:
+            id:
+              type: integer
+              minimum: 1
+              maximum: 2147483647
+            identificacao:
+              type: string
+            propriedadeId:
+              type: integer
+              minimum: 1
+              maximum: 2147483647
+            propriedade:
+              type: object
+              properties:
+                id:
+                  type: integer
+                  minimum: 1
+                  maximum: 2147483647
+                nome:
+                  type: string
+                usuarioId:
+                  type: integer
+                  minimum: 1
+                  maximum: 2147483647
+                status:
+                  type: string
+                  enum:
+                    - ATIVO
+                    - INATIVO
+                area:
+                  oneOf:
+                    - type: number
+                    - type: string
+                latitude:
+                  oneOf:
+                    - type: number
+                    - type: string
+                longitude:
+                  oneOf:
+                    - type: number
+                    - type: string
+      required:
+        - id
+        - codigo
+        - tipo
+        - loteId
+        - status
+      description: Datas e relações são serializadas pelo Prisma. Decimais de relações aninhadas podem ser texto.
+        readApiKey nunca é retornada.
+    ThingSpeakEntrada:
+      type: object
+      properties:
+        sensorId:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        channelId:
+          type: string
+          pattern: ^\d{1,20}$
+        readApiKey:
+          type: string
+          pattern: ^[A-Za-z0-9]{1,64}$
+          minLength: 1
+          maxLength: 64
+          format: password
+          writeOnly: true
+      required:
+        - sensorId
+        - channelId
+        - readApiKey
+      description: Não aceita espaços nas credenciais. Testa canal e chave antes de gravar. A chave do exemplo é fictícia.
+      example:
+        sensorId: 40
+        channelId: "3500440"
+        readApiKey: CHAVEEXEMPLO123
+    ThingSpeakResposta:
+      type: object
+      properties:
+        id:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        codigo:
+          type: string
+        channelId:
+          type: string
+        conectado:
+          type: boolean
+      required:
+        - id
+        - codigo
+        - channelId
+        - conectado
+    Leitura:
+      type: object
+      properties:
+        id:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        sensorId:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        temperatura:
+          type: number
+        umidade:
+          type: number
+        dataHoraLeitura:
+          type: string
+          format: date-time
+      required:
+        - id
+        - sensorId
+        - temperatura
+        - umidade
+        - dataHoraLeitura
+      description: umidade é o campo legado; sua interpretação depende do contrato do dispositivo.
+    LeiturasResposta:
+      type: object
+      properties:
+        dados:
+          type: array
+          items:
+            $ref: "#/components/schemas/Leitura"
+        paginacao:
+          $ref: "#/components/schemas/Paginacao"
+      required:
+        - dados
+        - paginacao
+    EstatisticasLeituras:
+      type: object
+      properties:
+        totalLeituras:
+          type: integer
+          minimum: 0
+          maximum: 2147483647
+        temperaturaMedia:
+          type: number
+          nullable: true
+        temperaturaMin:
+          type: number
+          nullable: true
+        temperaturaMax:
+          type: number
+          nullable: true
+        umidadeMedia:
+          type: number
+          nullable: true
+        umidadeMin:
+          type: number
+          nullable: true
+        umidadeMax:
+          type: number
+          nullable: true
+      required:
+        - totalLeituras
+      description: Agregações do período inteiro, não somente da página. Sem dados, os valores são null.
+    SensorLeiturasResposta:
+      type: object
+      properties:
+        periodoSelecionado:
+          type: string
+          enum:
+            - 24h
+            - 7d
+            - 30d
+        estatisticas:
+          $ref: "#/components/schemas/EstatisticasLeituras"
+        leituras:
+          type: array
+          items:
+            $ref: "#/components/schemas/Leitura"
+        paginacao:
+          $ref: "#/components/schemas/Paginacao"
+      required:
+        - periodoSelecionado
+        - estatisticas
+        - leituras
+        - paginacao
+    Alerta:
+      type: object
+      properties:
+        tipo:
+          type: string
+          enum:
+            - TEMPERATURA_BAIXA
+            - TEMPERATURA_ALTA
+            - UMIDADE_BAIXA
+            - UMIDADE_ALTA
+        valor:
+          type: number
+        limite:
+          type: number
+        dataHoraLeitura:
+          type: string
+          format: date-time
+        leituraDesatualizada:
+          type: boolean
+        sensorId:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        sensorCodigo:
+          type: string
+        loteId:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        loteIdentificacao:
+          type: string
+        propriedadeId:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        culturaNome:
+          type: string
+      required:
+        - tipo
+        - valor
+        - limite
+        - sensorId
+        - loteId
+        - propriedadeId
+        - dataHoraLeitura
+        - leituraDesatualizada
+    AlertasResposta:
+      type: object
+      properties:
+        total:
+          type: integer
+          minimum: 0
+          maximum: 2147483647
+        alertas:
+          type: array
+          items:
+            $ref: "#/components/schemas/Alerta"
+      required:
+        - total
+        - alertas
+    AlertaRisco:
+      type: object
+      properties:
+        id:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        sensorId:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        tipo:
+          type: string
+        nivel:
+          type: string
+        inicio:
+          type: string
+          format: date-time
+        fim:
+          type: string
+          format: date-time
+        duracaoMinutos:
+          type: number
+        regraVersao:
+          type: string
+        criadoEm:
+          type: string
+          format: date-time
+      required:
+        - sensorId
+        - tipo
+        - nivel
+        - inicio
+        - fim
+        - duracaoMinutos
+        - regraVersao
+    IndicadoresSensor:
+      type: object
+      properties:
+        sensorId:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        horasObservadas:
+          type: number
+          minimum: 0
+        horasForaFaixa:
+          type: number
+          minimum: 0
+        adequacaoPercentual:
+          type: number
+          minimum: 0
+          maximum: 100
+          nullable: true
+        grausDiaObservados:
+          type: number
+          nullable: true
+        regraVersao:
+          type: string
+      required:
+        - sensorId
+        - horasObservadas
+        - horasForaFaixa
+        - adequacaoPercentual
+        - grausDiaObservados
+        - regraVersao
+    LogisticaCriar:
+      type: object
+      properties:
+        origem:
+          type: string
+          minLength: 1
+          maxLength: 150
+        destino:
+          type: string
+          minLength: 1
+          maxLength: 150
+        modal:
+          type: string
+          enum:
+            - RODOVIARIO
+            - FERROVIARIO
+            - AEREO
+            - MARITIMO
+        tempoEstimadoHoras:
+          type: number
+          minimum: 0.1
+          maximum: 99999.9
+          multipleOf: 0.1
+        custo:
+          type: number
+          minimum: 0
+          maximum: 9999999999.99
+          multipleOf: 0.01
+        transportadora:
+          type: string
+          minLength: 1
+          maxLength: 150
+        situacao:
+          type: string
+          enum:
+            - PLANEJADA
+            - EM_TRANSITO
+            - ENTREGUE
+            - CANCELADA
+        exigeRefrigeracaoRapida:
+          type: boolean
+          nullable: true
+        colhidoEm:
+          type: string
+          format: date-time
+          nullable: true
+        resfriadoEm:
+          type: string
+          format: date-time
+          nullable: true
+        temperaturaResfriamentoC:
+          type: number
+          minimum: -273.15
+          maximum: 100
+          nullable: true
+        propriedadeId:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+      required:
+        - propriedadeId
+        - origem
+        - destino
+        - modal
+        - tempoEstimadoHoras
+        - custo
+        - transportadora
+        - situacao
+      description: "exigeRefrigeracaoRapida é declaração do operador. Medições de resfriamento: omitir todas, enviar
+        as três null, ou enviar as três válidas. Datas UTC com Z não futuras; resfriamento não antecede
+        colheita."
+      example:
+        propriedadeId: 19
+        origem: Petrolina
+        destino: Recife
+        modal: RODOVIARIO
+        tempoEstimadoHoras: 10
+        custo: 1500
+        transportadora: Transportadora de exemplo
+        situacao: PLANEJADA
+        exigeRefrigeracaoRapida: true
+    LogisticaAtualizar:
+      type: object
+      properties:
+        origem:
+          type: string
+          minLength: 1
+          maxLength: 150
+        destino:
+          type: string
+          minLength: 1
+          maxLength: 150
+        modal:
+          type: string
+          enum:
+            - RODOVIARIO
+            - FERROVIARIO
+            - AEREO
+            - MARITIMO
+        tempoEstimadoHoras:
+          type: number
+          minimum: 0.1
+          maximum: 99999.9
+          multipleOf: 0.1
+        custo:
+          type: number
+          minimum: 0
+          maximum: 9999999999.99
+          multipleOf: 0.01
+        transportadora:
+          type: string
+          minLength: 1
+          maxLength: 150
+        situacao:
+          type: string
+          enum:
+            - PLANEJADA
+            - EM_TRANSITO
+            - ENTREGUE
+            - CANCELADA
+        exigeRefrigeracaoRapida:
+          type: boolean
+          nullable: true
+        colhidoEm:
+          type: string
+          format: date-time
+          nullable: true
+        resfriadoEm:
+          type: string
+          format: date-time
+          nullable: true
+        temperaturaResfriamentoC:
+          type: number
+          minimum: -273.15
+          maximum: 100
+          nullable: true
+      description: "PUT parcial. propriedadeId e status são ignorados. exigeRefrigeracaoRapida é declaração do
+        operador. Medições de resfriamento: omitir todas, enviar as três null, ou enviar as três válidas.
+        Datas UTC com Z não futuras; resfriamento não antecede colheita."
+      example:
+        situacao: EM_TRANSITO
+    Logistica:
+      type: object
+      properties:
+        id:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        propriedadeId:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        origem:
+          type: string
+          minLength: 1
+          maxLength: 150
+        destino:
+          type: string
+          minLength: 1
+          maxLength: 150
+        modal:
+          type: string
+          enum:
+            - RODOVIARIO
+            - FERROVIARIO
+            - AEREO
+            - MARITIMO
+        tempoEstimadoHoras:
+          type: number
+          minimum: 0.1
+          maximum: 99999.9
+          multipleOf: 0.1
+        custo:
+          type: number
+          minimum: 0
+          maximum: 9999999999.99
+          multipleOf: 0.01
+        transportadora:
+          type: string
+          minLength: 1
+          maxLength: 150
+        situacao:
+          type: string
+          enum:
+            - PLANEJADA
+            - EM_TRANSITO
+            - ENTREGUE
+            - CANCELADA
+        exigeRefrigeracaoRapida:
+          type: boolean
+          nullable: true
+        colhidoEm:
+          type: string
+          format: date-time
+          nullable: true
+        resfriadoEm:
+          type: string
+          format: date-time
+          nullable: true
+        temperaturaResfriamentoC:
+          type: number
+          minimum: -273.15
+          maximum: 100
+          nullable: true
+        status:
+          type: string
+          enum:
+            - ATIVO
+            - INATIVO
+        criadoEm:
+          type: string
+          format: date-time
+        atualizadoEm:
+          type: string
+          format: date-time
+        refrigeracao:
+          type: object
+          properties:
+            origem:
+              type: string
+              enum:
+                - NAO_INFORMADO
+                - DECLARACAO_OPERADOR
+            prazoReferenciaHoras:
+              type: number
+              nullable: true
+            comparadorPrazo:
+              type: string
+              enum:
+                - MENOR_QUE
+                - null
+              nullable: true
+            temperaturaCargaVerificada:
+              type: boolean
+              enum:
+                - false
+          required:
+            - origem
+            - prazoReferenciaHoras
+            - comparadorPrazo
+            - temperaturaCargaVerificada
+      required:
+        - id
+        - propriedadeId
+        - origem
+        - destino
+        - modal
+        - tempoEstimadoHoras
+        - custo
+        - transportadora
+        - situacao
+        - status
+    LogisticaLista:
+      type: object
+      properties:
+        dados:
+          type: array
+          items:
+            $ref: "#/components/schemas/Logistica"
+        paginacao:
+          $ref: "#/components/schemas/Paginacao"
+      required:
+        - dados
+        - paginacao
+    ComparacaoLogistica:
+      type: object
+      properties:
+        propriedadesComparadas:
+          type: integer
+          minimum: 2
+          maximum: 10
+        calculadoEm:
+          type: string
+          format: date-time
+        indicadores:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+                minimum: 1
+                maximum: 2147483647
+              nome:
+                type: string
+              cidade:
+                type: string
+              uf:
+                type: string
+              rotasAtivas:
+                type: integer
+                minimum: 0
+                maximum: 2147483647
+              custoTotalRotas:
+                type: number
+                minimum: 0
+              rotasPorSituacao:
+                type: object
+                additionalProperties:
+                  type: integer
+                  minimum: 0
+                  maximum: 2147483647
+              rotasPorModal:
+                type: object
+                additionalProperties:
+                  type: integer
+                  minimum: 0
+                  maximum: 2147483647
+              custoMedioRota:
+                type: number
+                nullable: true
+              custoMinimoRota:
+                type: number
+                nullable: true
+              custoMaximoRota:
+                type: number
+                nullable: true
+              prazoMedioHoras:
+                type: number
+                nullable: true
+              prazoMinimoHoras:
+                type: number
+                nullable: true
+              prazoMaximoHoras:
+                type: number
+                nullable: true
+        observacao:
+          type: string
+      required:
+        - propriedadesComparadas
+        - calculadoEm
+        - indicadores
+        - observacao
+    DashboardResumo:
+      type: object
+      properties:
+        ultimaLeitura:
+          type: object
+          properties:
+            sensorId:
+              type: integer
+              minimum: 1
+              maximum: 2147483647
+            sensorCodigo:
+              type: string
+            temperatura:
+              type: number
+            umidade:
+              type: number
+            dataHoraLeitura:
+              type: string
+              format: date-time
+          nullable: true
+        totalAlertas:
+          type: integer
+          minimum: 0
+          maximum: 2147483647
+        sensoresAtivos:
+          type: integer
+          minimum: 0
+          maximum: 2147483647
+        totalLeituras:
+          type: integer
+          minimum: 0
+          maximum: 2147483647
+        temperaturaMedia:
+          type: number
+          nullable: true
+        umidadeMedia:
+          type: number
+          nullable: true
+        janelaMediasHoras:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+      required:
+        - ultimaLeitura
+        - totalAlertas
+        - sensoresAtivos
+        - totalLeituras
+        - temperaturaMedia
+        - umidadeMedia
+        - janelaMediasHoras
+    DashboardMedias:
+      type: object
+      properties:
+        agrupar:
+          type: string
+          enum:
+            - hora
+            - dia
+        fuso:
+          type: string
+          example: America/Recife
+        de:
+          type: string
+          format: date-time
+        ate:
+          type: string
+          format: date-time
+        dados:
+          type: array
+          items:
+            type: object
+            properties:
+              periodo:
+                type: string
+                format: date-time
+              temperaturaMedia:
+                type: number
+              umidadeMedia:
+                type: number
+              quantidade:
+                type: integer
+                minimum: 0
+                maximum: 2147483647
+      required:
+        - agrupar
+        - fuso
+        - de
+        - ate
+        - dados
+    AreasProdutor:
+      type: object
+      properties:
+        protecao:
+          type: number
+          minimum: 0
+        risco:
+          type: number
+          minimum: 0
+        semDados:
+          type: number
+          minimum: 0
+      required:
+        - protecao
+        - risco
+        - semDados
+      description: Áreas em hectares. Usa leituras de até 60 minutos e cobertura dos sensores ativos do lote. Não
+        representa diagnóstico fitossanitário.
+    AlertasDoDia:
+      type: object
+      properties:
+        total:
+          type: integer
+          minimum: 0
+          maximum: 2147483647
+        inicioDia:
+          type: string
+          format: date-time
+        fuso:
+          type: string
+          example: America/Recife
+      required:
+        - total
+        - inicioDia
+        - fuso
+      description: Conta episódios que sobrepõem o dia local. Mudanças de nível não duplicam sensor/tipo/início.
+    Auditoria:
+      type: object
+      properties:
+        id:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        usuarioId:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        operacao:
+          type: string
+          enum:
+            - CREATE
+            - UPDATE
+            - DELETE
+        recurso:
+          type: string
+        recursoId:
+          type: string
+          nullable: true
+        dataHora:
+          type: string
+          format: date-time
+        ip:
+          type: string
+      required:
+        - id
+        - usuarioId
+        - operacao
+        - recurso
+        - dataHora
+        - ip
+    Metricas:
+      type: object
+      properties:
+        requisicoes:
+          type: number
+          minimum: 0
+        erros4xx:
+          type: number
+          minimum: 0
+        erros5xx:
+          type: number
+          minimum: 0
+        duracaoTotalMs:
+          type: number
+          minimum: 0
+        latenciaMediaMs:
+          type: number
+          minimum: 0
+        taxaErros4xx:
+          type: number
+          minimum: 0
+        taxaErros5xx:
+          type: number
+          minimum: 0
+      required:
+        - requisicoes
+        - erros4xx
+        - erros5xx
+        - duracaoTotalMs
+        - latenciaMediaMs
+        - taxaErros4xx
+        - taxaErros5xx
+      description: Contadores em memória, reiniciados com o processo. Taxas são frações entre 0 e 1.
+    Saude:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - ok
+      required:
+        - status
+    ClimaPropriedade:
+      type: object
+      properties:
+        propriedadeId:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        nomePropriedade:
+          type: string
+        coordenadas:
+          type: object
+          properties:
+            latitude:
+              type: number
+            longitude:
+              type: number
+        fonteClima:
+          type: string
+        periodo:
+          type: object
+          properties:
+            inicio:
+              type: string
+              pattern: ^\d{8}$
+            fim:
+              type: string
+              pattern: ^\d{8}$
+        parametrosClimaticos:
+          type: object
+          additionalProperties:
+            type: object
+            additionalProperties:
+              type: number
+              nullable: true
+      required:
+        - propriedadeId
+        - nomePropriedade
+        - coordenadas
+        - fonteClima
+        - periodo
+        - parametrosClimaticos
+      description: NASA POWER dos últimos cinco dias até ontem. Sentinela -999 torna-se null.
+    CotacaoEntrada:
+      type: object
+      properties:
+        culturaId:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        mercadoDestino:
+          type: string
+          enum:
+            - INTERNO
+            - EXPORTACAO
+        paisDestino:
+          type: string
+          pattern: ^[A-Z]{2}$
+          description: "INTERNO: BR por padrão. EXPORTACAO: obrigatório e diferente de BR."
+        precoMedio:
+          type: number
+          minimum: 0.0001
+          maximum: 9999999999.9999
+          multipleOf: 0.0001
+        unidade:
+          type: string
+          enum:
+            - KG
+        moeda:
+          type: string
+          enum:
+            - BRL
+            - USD
+            - EUR
+            - GBP
+        dataReferencia:
+          type: string
+          format: date
+          description: Data real e não futura.
+        fonteNome:
+          type: string
+          minLength: 3
+          maxLength: 150
+        fonteReferencia:
+          type: string
+          minLength: 3
+          maxLength: 500
+        demandaEstimadaKg:
+          type: number
+          minimum: 0
+          maximum: 999999999999.99
+          multipleOf: 0.01
+          nullable: true
+        demandaInicio:
+          type: string
+          format: date
+          nullable: true
+        demandaFim:
+          type: string
+          format: date
+          nullable: true
+        fonteDemanda:
+          type: string
+          minLength: 3
+          maxLength: 500
+          nullable: true
+        metodoDemanda:
+          type: string
+          minLength: 10
+          maxLength: 1000
+          nullable: true
+        unidadeDemanda:
+          type: string
+          enum:
+            - KG
+      required:
+        - culturaId
+        - mercadoDestino
+        - precoMedio
+        - moeda
+        - dataReferencia
+        - fonteNome
+        - fonteReferencia
+      description: POST e PUT validam o cadastro completo. Se informar demandaEstimadaKg, informar período, fonte e
+        método. Fim da demanda não antecede início. Não há estimativa automática de demanda nem câmbio.
+      example:
+        culturaId: 3
+        mercadoDestino: INTERNO
+        precoMedio: 5
+        moeda: BRL
+        dataReferencia: 2026-11-25
+        fonteNome: Fonte de exemplo
+        fonteReferencia: Documento de exemplo para testes
+    Cotacao:
+      type: object
+      properties:
+        id:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        culturaId:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        mercadoDestino:
+          type: string
+          enum:
+            - INTERNO
+            - EXPORTACAO
+        paisDestino:
+          type: string
+          pattern: ^[A-Z]{2}$
+          description: "INTERNO: BR por padrão. EXPORTACAO: obrigatório e diferente de BR."
+        precoMedio:
+          type: number
+          minimum: 0.0001
+          maximum: 9999999999.9999
+          multipleOf: 0.0001
+        unidade:
+          type: string
+          enum:
+            - KG
+        moeda:
+          type: string
+          enum:
+            - BRL
+            - USD
+            - EUR
+            - GBP
+        dataReferencia:
+          type: string
+          format: date
+          description: Data real e não futura.
+        fonteNome:
+          type: string
+          minLength: 3
+          maxLength: 150
+        fonteReferencia:
+          type: string
+          minLength: 3
+          maxLength: 500
+        demandaEstimadaKg:
+          type: number
+          minimum: 0
+          maximum: 999999999999.99
+          multipleOf: 0.01
+          nullable: true
+        demandaInicio:
+          type: string
+          format: date
+          nullable: true
+        demandaFim:
+          type: string
+          format: date
+          nullable: true
+        fonteDemanda:
+          type: string
+          minLength: 3
+          maxLength: 500
+          nullable: true
+        metodoDemanda:
+          type: string
+          minLength: 10
+          maxLength: 1000
+          nullable: true
+        unidadeDemanda:
+          type: string
+          enum:
+            - KG
+        cultura:
+          $ref: "#/components/schemas/CulturaResumo"
+        status:
+          type: string
+          enum:
+            - ATIVO
+            - INATIVO
+        origemRegistro:
+          type: string
+          enum:
+            - DECLARADO_POR_ADMIN
+        verificacaoAutomaticaDaFonte:
+          type: boolean
+        idadeDias:
+          type: integer
+          minimum: 0
+          maximum: 2147483647
+        desatualizada:
+          type: boolean
+        aviso:
+          type: string
+        criadoEm:
+          type: string
+          format: date-time
+        atualizadoEm:
+          type: string
+          format: date-time
+      required:
+        - id
+        - culturaId
+        - mercadoDestino
+        - precoMedio
+        - moeda
+        - dataReferencia
+        - origemRegistro
+        - desatualizada
+    CotacoesLista:
+      type: object
+      properties:
+        dados:
+          type: array
+          items:
+            $ref: "#/components/schemas/Cotacao"
+        paginacao:
+          $ref: "#/components/schemas/Paginacao"
+      required:
+        - dados
+        - paginacao
+    PrecoConab:
+      type: object
+      properties:
+        produto:
+          type: string
+        variedade:
+          type: string
+          nullable: true
+        uf:
+          type: string
+        ceasa:
+          type: string
+        unidade:
+          type: string
+        data:
+          type: string
+          format: date
+        preco:
+          type: number
+          minimum: 0
+      required:
+        - produto
+        - uf
+        - ceasa
+        - unidade
+        - data
+        - preco
+    ResumoMercado:
+      type: object
+      properties:
+        cultura:
+          type: string
+        mercadoDestino:
+          type: object
+          properties:
+            tipo:
+              type: string
+              enum:
+                - INTERNO
+            pais:
+              type: string
+              enum:
+                - BR
+            uf:
+              type: string
+            ceasa:
+              type: string
+              nullable: true
+            escopo:
+              type: string
+              enum:
+                - FILTRO_CEASA
+                - CEASAS_DA_UF
+        moeda:
+          type: string
+          enum:
+            - BRL
+        dataReferencia:
+          type: string
+          format: date
+          nullable: true
+        precoMedio:
+          type: number
+          nullable: true
+        unidade:
+          type: string
+          nullable: true
+        precosMediosPorUnidade:
+          type: array
+          items:
+            type: object
+            properties:
+              unidade:
+                type: string
+              precoMedio:
+                type: number
+              quantidadeObservacoes:
+                type: integer
+                minimum: 0
+                maximum: 2147483647
+        metodo:
+          type: string
+        demandaEstimada:
+          type: number
+          nullable: true
+        precoExportacao:
+          type: number
+          nullable: true
+        disponibilidade:
+          type: object
+          properties:
+            demandaEstimada:
+              type: string
+            precoExportacao:
+              type: string
+        limitacoes:
+          type: array
+          items:
+            type: string
+    PrecosResposta:
+      type: object
+      properties:
+        fonte:
+          type: string
+        origem:
+          type: string
+        consultadoEn:
+          type: string
+          format: date-time
+        filtros:
+          type: object
+          properties:
+            produto:
+              type: string
+            uf:
+              type: string
+            ceasa:
+              type: string
+              nullable: true
+        resumoMercado:
+          $ref: "#/components/schemas/ResumoMercado"
+        precoAtual:
+          type: object
+          properties:
+            produto:
+              type: string
+            variedade:
+              type: string
+              nullable: true
+            uf:
+              type: string
+            ceasa:
+              type: string
+            unidade:
+              type: string
+            data:
+              type: string
+              format: date
+            preco:
+              type: number
+              minimum: 0
+          nullable: true
+        historico:
+          type: array
+          items:
+            $ref: "#/components/schemas/PrecoConab"
+        desatualizado:
+          type: boolean
+      required:
+        - fonte
+        - origem
+        - consultadoEn
+        - filtros
+        - resumoMercado
+        - precoAtual
+        - historico
+      description: Consulta CONAB/PROHORT. Pode retornar cache antigo com desatualizado=true. Sem cotação
+        compatível, histórico vazio. Não fornece preço de exportação nem demanda estimada. consultadoEn mantém
+        a grafia atual da API.
+    CulturaDetalhes:
+      type: object
+      properties:
+        cultura:
+          $ref: "#/components/schemas/Cultura"
+        condicoesAtuais:
+          type: object
+          properties:
+            temperaturaAtual:
+              type: number
+            umidadeAtual:
+              type: number
+            velocidadeVento:
+              type: number
+          nullable: true
+        alertas:
+          type: object
+          properties:
+            temperaturaForaDoRango:
+              type: boolean
+            umidadeForaDoRango:
+              type: boolean
+          nullable: true
+        cotacaoMercado:
+          type: object
+          properties:
+            fonte:
+              type: string
+            origem:
+              type: string
+            consultadoEn:
+              type: string
+              format: date-time
+            filtros:
+              type: object
+              properties:
+                produto:
+                  type: string
+                uf:
+                  type: string
+                ceasa:
+                  type: string
+                  nullable: true
+            resumoMercado:
+              $ref: "#/components/schemas/ResumoMercado"
+            precoAtual:
+              type: object
+              properties:
+                produto:
+                  type: string
+                variedade:
+                  type: string
+                  nullable: true
+                uf:
+                  type: string
+                ceasa:
+                  type: string
+                unidade:
+                  type: string
+                data:
+                  type: string
+                  format: date
+                preco:
+                  type: number
+                  minimum: 0
+              nullable: true
+            historico:
+              type: array
+              items:
+                $ref: "#/components/schemas/PrecoConab"
+            desatualizado:
+              type: boolean
+          nullable: true
+        estatisticasAgricolas:
+          type: object
+          properties:
+            indicador:
+              type: string
+            anoReferencia:
+              type: string
+            valor:
+              oneOf:
+                - type: string
+                  nullable: true
+                - type: number
+            aviso:
+              type: string
+            erro:
+              type: string
+        avisoMercado:
+          type: string
+        avisoClima:
+          type: string
+      required:
+        - cultura
+        - condicoesAtuais
+        - alertas
+        - cotacaoMercado
+        - estatisticasAgricolas
+    JanelasEntrada:
+      type: object
+      properties:
+        sensorId:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        dataHoraReferencia:
+          type: string
+          format: date-time
+          description: UTC com segundos e Z; até 00:00 UTC de hoje e no máximo 366 dias atrás.
+        grausDiaReferencia:
+          type: number
+          minimum: 0
+          maximum: 100000
+        temperaturaBase:
+          type: number
+          minimum: -10
+          maximum: 60
+        grausDiaAlvo:
+          type: number
+          minimum: 1
+          maximum: 100000
+        chuvaMaxMm:
+          type: number
+          minimum: 0
+          maximum: 1000
+        umidadeArMaxPercentual:
+          type: number
+          minimum: 0
+          maximum: 100
+        fonteParametros:
+          type: string
+          minLength: 1
+          maxLength: 200
+        versaoParametros:
+          type: string
+          minLength: 1
+          maxLength: 200
+        rotaLogisticaId:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        horasAteResfriamento:
+          type: number
+          minimum: 0
+          maximum: 1000
+        vidaUtilHoras:
+          type: number
+          minimum: 0.01
+          maximum: 10000
+        custoInternoKg:
+          type: number
+          minimum: 0
+          maximum: 100000
+        custoExportacaoKg:
+          type: number
+          minimum: 0
+          maximum: 100000
+        cadeiaFrioGarantida:
+          type: boolean
+        precoInternoKg:
+          type: number
+          minimum: 0
+          maximum: 100000
+        precoExportacaoKg:
+          type: number
+          minimum: 0
+          maximum: 100000
+        moeda:
+          type: string
+          enum:
+            - BRL
+        dataHoraCotacao:
+          type: string
+          format: date-time
+          description: UTC com segundos e Z; não futura e com até 7 dias.
+        fonteCotacao:
+          type: string
+          minLength: 1
+          maxLength: 200
+        cotacaoInternaId:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        cotacaoExportacaoId:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+      required:
+        - sensorId
+        - dataHoraReferencia
+        - grausDiaReferencia
+        - temperaturaBase
+        - grausDiaAlvo
+        - chuvaMaxMm
+        - umidadeArMaxPercentual
+        - fonteParametros
+        - versaoParametros
+      description: Sensor ativo deve pertencer ao lote autorizado. Escolha só colheita, exportação com cotação
+        manual, ou exportação por dois IDs distintos. IDs exigem cotações da cultura do lote, BRL/KG, destinos
+        interno/exportação e até 7 dias. Não misture IDs com valores diretos de cotação. Parâmetros precisam
+        de validação agronômica.
+      oneOf:
+        - not:
+            anyOf:
+              - required:
+                  - rotaLogisticaId
+              - required:
+                  - horasAteResfriamento
+              - required:
+                  - vidaUtilHoras
+              - required:
+                  - custoInternoKg
+              - required:
+                  - custoExportacaoKg
+              - required:
+                  - cadeiaFrioGarantida
+              - required:
+                  - precoInternoKg
+              - required:
+                  - precoExportacaoKg
+              - required:
+                  - moeda
+              - required:
+                  - dataHoraCotacao
+              - required:
+                  - fonteCotacao
+              - required:
+                  - cotacaoInternaId
+              - required:
+                  - cotacaoExportacaoId
+        - required:
+            - rotaLogisticaId
+            - horasAteResfriamento
+            - vidaUtilHoras
+            - custoInternoKg
+            - custoExportacaoKg
+            - cadeiaFrioGarantida
+            - precoInternoKg
+            - precoExportacaoKg
+            - moeda
+            - dataHoraCotacao
+            - fonteCotacao
+          not:
+            anyOf:
+              - required:
+                  - cotacaoInternaId
+              - required:
+                  - cotacaoExportacaoId
+        - required:
+            - rotaLogisticaId
+            - horasAteResfriamento
+            - vidaUtilHoras
+            - custoInternoKg
+            - custoExportacaoKg
+            - cadeiaFrioGarantida
+            - cotacaoInternaId
+            - cotacaoExportacaoId
+          not:
+            anyOf:
+              - required:
+                  - precoInternoKg
+              - required:
+                  - precoExportacaoKg
+              - required:
+                  - moeda
+              - required:
+                  - dataHoraCotacao
+              - required:
+                  - fonteCotacao
+      example:
+        sensorId: 40
+        dataHoraReferencia: 2026-11-25T00:00:00Z
+        grausDiaReferencia: 0
+        temperaturaBase: 10
+        grausDiaAlvo: 1500
+        chuvaMaxMm: 5
+        umidadeArMaxPercentual: 80
+        fonteParametros: Parâmetros sintéticos de teste, sem validação agronômica
+        versaoParametros: teste-v1
+    RecomendacaoEntrada:
+      type: object
+      properties:
+        grausDiaAcumulados:
+          type: number
+          minimum: 0
+          maximum: 100000
+        grausDiaAlvo:
+          type: number
+          minimum: 1
+          maximum: 100000
+        chuvaPrevistaMm:
+          type: number
+          minimum: 0
+          maximum: 1000
+        chuvaLimiteMm:
+          type: number
+          minimum: 0
+          maximum: 1000
+        umidadePrevista:
+          type: number
+          minimum: 0
+          maximum: 100
+        umidadeLimite:
+          type: number
+          minimum: 0
+          maximum: 100
+        horasAteResfriamento:
+          type: number
+          minimum: 0
+          maximum: 1000
+        tempoTransporteHoras:
+          type: number
+          minimum: 0
+          maximum: 1000
+        vidaUtilHoras:
+          type: number
+          minimum: 0.01
+          maximum: 10000
+        precoInternoKg:
+          type: number
+          minimum: 0
+          maximum: 100000
+        precoExportacaoKg:
+          type: number
+          minimum: 0
+          maximum: 100000
+        custoInternoKg:
+          type: number
+          minimum: 0
+          maximum: 100000
+        custoExportacaoKg:
+          type: number
+          minimum: 0
+          maximum: 100000
+        cadeiaFrioGarantida:
+          type: boolean
+      required:
+        - grausDiaAcumulados
+        - grausDiaAlvo
+        - chuvaPrevistaMm
+        - chuvaLimiteMm
+        - umidadePrevista
+        - umidadeLimite
+        - horasAteResfriamento
+        - tempoTransporteHoras
+        - vidaUtilHoras
+        - precoInternoKg
+        - precoExportacaoKg
+        - custoInternoKg
+        - custoExportacaoKg
+        - cadeiaFrioGarantida
+      description: Simulação manual, diferente de /janelas e /previsao. Todos os campos são obrigatórios; fase
+        fenológica vem do lote. Não calcula uma data futura.
+      example:
+        grausDiaAcumulados: 0
+        grausDiaAlvo: 1500
+        chuvaPrevistaMm: 0
+        chuvaLimiteMm: 0
+        umidadePrevista: 0
+        umidadeLimite: 0
+        horasAteResfriamento: 0
+        tempoTransporteHoras: 0
+        vidaUtilHoras: 100
+        precoInternoKg: 0
+        precoExportacaoKg: 0
+        custoInternoKg: 0
+        custoExportacaoKg: 0
+        cadeiaFrioGarantida: false
+    RecomendacaoResposta:
+      type: object
+      properties:
+        natureza:
+          type: string
+          enum:
+            - SIMULACAO_PARAMETRIZADA
+        regraVersao:
+          type: string
+        colheita:
+          type: object
+          properties:
+            favoravel:
+              type: boolean
+            motivos:
+              type: array
+              items:
+                type: string
+        exportacao:
+          type: object
+          properties:
+            favoravel:
+              type: boolean
+            margemInternaKg:
+              type: number
+            margemExportacaoKg:
+              type: number
+        observacao:
+          type: string
+      required:
+        - natureza
+        - regraVersao
+        - colheita
+        - exportacao
+        - observacao
+    JanelaColheita:
+      type: object
+      properties:
+        inicio:
+          type: string
+          format: date-time
+        fim:
+          type: string
+          format: date-time
+      required:
+        - inicio
+        - fim
+    JanelaExportacao:
+      type: object
+      properties:
+        colheitaInicio:
+          type: string
+          format: date-time
+        colheitaFim:
+          type: string
+          format: date-time
+        embarqueInicio:
+          type: string
+          format: date-time
+        embarqueFim:
+          type: string
+          format: date-time
+        chegadaInicio:
+          type: string
+          format: date-time
+        chegadaFim:
+          type: string
+          format: date-time
+      required:
+        - colheitaInicio
+        - colheitaFim
+        - embarqueInicio
+        - embarqueFim
+        - chegadaInicio
+        - chegadaFim
+    JanelasResposta:
+      type: object
+      properties:
+        loteId:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        sensorId:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        cultura:
+          type: object
+          properties:
+            nome:
+              type: string
+            variedade:
+              type: string
+              nullable: true
+        faseFenologica:
+          type: string
+          enum:
+            - VEGETATIVA
+            - FLORACAO_PANICULA
+            - FRUTIFICACAO
+            - MATURACAO
+            - null
+          nullable: true
+        coordenadasUtilizadas:
+          type: object
+          properties:
+            latitude:
+              type: number
+            longitude:
+              type: number
+            origem:
+              type: string
+              enum:
+                - LOTE
+                - PROPRIEDADE
+            estimadasUf:
+              type: boolean
+        natureza:
+          type: string
+        regraVersao:
+          type: string
+        calculadoEm:
+          type: string
+          format: date-time
+        parametros:
+          type: object
+          properties:
+            fonte:
+              type: string
+            versao:
+              type: string
+            temperaturaBase:
+              type: number
+            grausDiaAlvo:
+              type: number
+        historico:
+          type: object
+          properties:
+            suficiente:
+              type: boolean
+            grausDia:
+              type: number
+            horasObservadas:
+              type: number
+              minimum: 0
+            coberturaPercentual:
+              type: number
+              minimum: 0
+              maximum: 100
+            ate:
+              type: string
+              format: date-time
+            grausDiaReferencia:
+              type: number
+        previsao:
+          type: object
+          properties:
+            fonte:
+              type: string
+            consultadaEm:
+              type: string
+              format: date-time
+            timezone:
+              type: string
+        colheita:
+          type: object
+          properties:
+            status:
+              type: string
+              enum:
+                - FAVORAVEL
+                - AGUARDAR_MATURACAO
+                - SEM_JANELA_NO_HORIZONTE
+                - DADOS_INSUFICIENTES
+            janelas:
+              type: array
+              items:
+                $ref: "#/components/schemas/JanelaColheita"
+            motivos:
+              type: array
+              items:
+                type: string
+        exportacao:
+          type: object
+          properties:
+            status:
+              type: string
+              enum:
+                - FAVORAVEL
+                - NAO_FAVORAVEL
+                - SEM_JANELA_COLHEITA
+                - DADOS_INSUFICIENTES
+            janelas:
+              type: array
+              items:
+                $ref: "#/components/schemas/JanelaExportacao"
+            motivos:
+              type: array
+              items:
+                type: string
+            margemInternaKg:
+              type: number
+            margemExportacaoKg:
+              type: number
+            moeda:
+              type: string
+            unidade:
+              type: string
+        avisos:
+          type: array
+          items:
+            type: string
+      required:
+        - loteId
+        - sensorId
+        - calculadoEm
+        - colheita
+        - exportacao
+        - avisos
+    PrevisaoPythonResposta:
+      type: object
+      properties:
+        loteId:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        sensorId:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        cultura:
+          type: object
+          properties:
+            nome:
+              type: string
+            variedade:
+              type: string
+              nullable: true
+        faseFenologica:
+          type: string
+          enum:
+            - VEGETATIVA
+            - FLORACAO_PANICULA
+            - FRUTIFICACAO
+            - MATURACAO
+            - null
+          nullable: true
+        coordenadasUtilizadas:
+          type: object
+          properties:
+            latitude:
+              type: number
+            longitude:
+              type: number
+            origem:
+              type: string
+              enum:
+                - LOTE
+                - PROPRIEDADE
+            estimadasUf:
+              type: boolean
+        fonteModelo:
+          type: string
+          enum:
+            - SERVICO_PYTHON
+        contractVersion:
+          type: string
+          enum:
+            - "1.0"
+        modelVersion:
+          type: string
+        generatedAt:
+          type: string
+          format: date-time
+        harvest:
+          type: object
+          properties:
+            status:
+              type: string
+              enum:
+                - FAVORAVEL
+                - AGUARDAR_MATURACAO
+                - SEM_JANELA_NO_HORIZONTE
+                - DADOS_INSUFICIENTES
+            windows:
+              type: array
+              items:
+                $ref: "#/components/schemas/JanelaColheita"
+            reasons:
+              type: array
+              items:
+                type: string
+          required:
+            - status
+            - windows
+            - reasons
+        export:
+          type: object
+          properties:
+            status:
+              type: string
+              enum:
+                - FAVORAVEL
+                - NAO_FAVORAVEL
+                - SEM_JANELA_COLHEITA
+                - DADOS_INSUFICIENTES
+            windows:
+              type: array
+              items:
+                $ref: "#/components/schemas/JanelaExportacao"
+            reasons:
+              type: array
+              items:
+                type: string
+          required:
+            - status
+            - windows
+            - reasons
+      required:
+        - loteId
+        - sensorId
+        - fonteModelo
+        - contractVersion
+        - modelVersion
+        - generatedAt
+        - harvest
+        - export
+      description: O Node chama o serviço Python configurado. Usa harvest/export; a resposta difere de /janelas.
+    ProdutividadeResposta:
+      type: object
+      properties:
+        municipio:
+          type: string
+        produto:
+          type: string
+        anoPrevisao:
+          type: integer
+          minimum: 0
+          maximum: 9999
+        produtividadePrevistaTHa:
+          type: number
+          minimum: 0
+        metodo:
+          type: string
+        status:
+          type: string
+          enum:
+            - EXPERIMENTAL
+        unidade:
+          type: string
+          enum:
+            - t/ha
+        aviso:
+          type: string
+      required:
+        - municipio
+        - produto
+        - anoPrevisao
+        - produtividadePrevistaTHa
+        - metodo
+        - status
+        - unidade
+        - aviso
+      description: Referência municipal anual lida de CSV. Não é previsão individual do lote. Fonte histórica ainda
+        depende de auditoria.
